@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import './App.css';
 import Login from './components/Login';
 import Register from './components/Register';
 import api from './services/api';
 
-function App() {
+function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [chats, setChats] = useState([]);
@@ -13,17 +13,10 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [language, setLanguage] = useState('en');
+  const [error, setError] = useState(null);
+  const [language, setLanguage] = useState('tr');
   const [darkMode, setDarkMode] = useState(false);
   const messagesEndRef = useRef(null);
-
-  // Uygulama yüklendiğinde login sayfasını göster
-  useEffect(() => {
-    console.log('App loading, clearing localStorage...');
-    localStorage.clear();
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -35,33 +28,28 @@ function App() {
 
   const handleLogin = async (username, password) => {
     try {
-      console.log('Attempting login with:', { username, password });
+      setError(null);
       const response = await api.login(username, password);
-      console.log('Login response:', response);
       
       if (response.success) {
-        console.log('Login successful, setting authenticated state...');
         setIsAuthenticated(true);
         setCurrentUser(response.user);
-        console.log('Loading chats...');
         await loadChats();
-        console.log('Login process completed, user should be redirected to chat');
         return { success: true };
       } else {
-        console.log('Login failed:', response.message);
+        setError(response.message);
         return { success: false, error: response.message };
       }
     } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, error: 'Giriş yapılırken bir hata oluştu' };
+      setError(error.message);
+      return { success: false, error: error.message };
     }
   };
 
   const handleRegister = async (username, email, password) => {
     try {
-      console.log('Attempting register with:', { username, email, password });
+      setError(null);
       const response = await api.register(username, email, password);
-      console.log('Register response:', response);
       
       if (response.success) {
         setIsAuthenticated(true);
@@ -69,50 +57,83 @@ function App() {
         await loadChats();
         return { success: true };
       } else {
+        setError(response.message);
         return { success: false, error: response.message };
       }
     } catch (error) {
-      console.error('Register error:', error);
-      return { success: false, error: 'Kayıt olurken bir hata oluştu' };
+      setError(error.message);
+      return { success: false, error: error.message };
     }
   };
 
   const loadChats = async () => {
     try {
-      console.log('Loading chats...');
+      setError(null);
       const response = await api.getChats();
-      console.log('Chats loaded:', response);
-      setChats(response.chats || []);
+      if (response.success) {
+        setChats(response.chats || []);
+      } else {
+        setError(response.message);
+      }
     } catch (error) {
-      console.error('Error loading chats:', error);
+      setError(error.message);
     }
   };
 
   const createNewChat = async () => {
     try {
+      setError(null);
+      setIsLoading(true);
       console.log('Creating new chat...');
-      const response = await api.createChat(`Chat ${chats.length + 1}`);
-      console.log('New chat created:', response);
+      const defaultTitle = `Yeni Sohbet ${chats.length + 1}`;
+      const response = await api.createChat(defaultTitle);
+      console.log('Create chat response:', response);
       
       if (response.success) {
+        console.log('Chat created successfully:', response.chat);
         await loadChats();
         setCurrentChatId(response.chat.id);
         setMessages([]);
+      } else {
+        console.log('Failed to create chat:', response.message);
+        setError(response.message || 'Sohbet oluşturulamadı');
       }
     } catch (error) {
       console.error('Error creating chat:', error);
+      setError(error.message || 'Sohbet oluşturulamadı');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateChatTitle = async (chatId, newTitle) => {
+    try {
+      setError(null);
+      const response = await api.updateChatTitle(chatId, newTitle);
+      
+      if (response.success) {
+        await loadChats();
+      } else {
+        setError(response.message || 'Başlık güncellenemedi');
+      }
+    } catch (error) {
+      setError(error.message || 'Başlık güncellenemedi');
     }
   };
 
   const selectChat = async (chatId) => {
     try {
-      console.log('Selecting chat:', chatId);
+      setError(null);
       setCurrentChatId(chatId);
       const response = await api.getChatMessages(chatId);
-      console.log('Chat messages loaded:', response);
-      setMessages(response.messages || []);
+      
+      if (response.success) {
+        setMessages(response.messages || []);
+      } else {
+        setError(response.message);
+      }
     } catch (error) {
-      console.error('Error loading chat messages:', error);
+      setError(error.message);
     }
   };
 
@@ -129,12 +150,13 @@ function App() {
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsLoading(true);
+    setError(null);
 
     try {
       console.log('Sending message:', { chatId: currentChatId, message: inputMessage });
       const response = await api.sendMessage(currentChatId, inputMessage);
-      console.log('Message sent, AI response:', response);
-
+      console.log('Message response:', response);
+      
       if (response.success && response.aiResponse) {
         const aiMessage = {
           id: Date.now() + 1,
@@ -143,16 +165,13 @@ function App() {
           timestamp: new Date().toISOString()
         };
         setMessages(prev => [...prev, aiMessage]);
+      } else {
+        setError(response.message || 'Mesaj gönderilemedi');
+        console.log('Failed to send message:', response.message);
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      const errorMessage = {
-        id: Date.now() + 1,
-        text: 'Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.',
-        sender: 'ai',
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      setError(error.message || 'Mesaj gönderilemedi');
     } finally {
       setIsLoading(false);
     }
@@ -160,9 +179,8 @@ function App() {
 
   const deleteChat = async (chatId) => {
     try {
-      console.log('Deleting chat:', chatId);
+      setError(null);
       const response = await api.deleteChat(chatId);
-      console.log('Chat deleted:', response);
       
       if (response.success) {
         await loadChats();
@@ -170,19 +188,21 @@ function App() {
           setCurrentChatId(null);
           setMessages([]);
         }
+      } else {
+        setError(response.message);
       }
     } catch (error) {
-      console.error('Error deleting chat:', error);
+      setError(error.message);
     }
   };
 
   const handleLogout = () => {
-    console.log('Logging out...');
     setIsAuthenticated(false);
     setCurrentUser(null);
     setChats([]);
     setCurrentChatId(null);
     setMessages([]);
+    setError(null);
     localStorage.clear();
   };
 
@@ -194,7 +214,11 @@ function App() {
       logout: 'Logout',
       darkMode: 'Dark Mode',
       language: 'Language',
-      delete: 'Delete'
+      delete: 'Delete',
+      welcome: 'Welcome to AI Chatbot!',
+      startChat: 'Create a new chat to start conversation.',
+      error: 'Error',
+      login: 'Login'
     },
     tr: {
       newChat: 'Yeni Sohbet',
@@ -203,24 +227,22 @@ function App() {
       logout: 'Çıkış',
       darkMode: 'Karanlık Mod',
       language: 'Dil',
-      delete: 'Sil'
+      delete: 'Sil',
+      welcome: 'AI Chatbot\'a Hoş Geldiniz!',
+      startChat: 'Sohbete başlamak için yeni bir chat oluşturun.',
+      error: 'Hata',
+      login: 'Giriş Yap'
     }
   };
 
   const t = translations[language];
+  const location = useLocation();
 
-  if (!isAuthenticated) {
-    return (
-      <Router>
-        <div className={`app ${darkMode ? 'dark-mode' : ''}`}>
-          <Routes>
-            <Route path="/login" element={<Login onLogin={handleLogin} />} />
-            <Route path="/register" element={<Register onRegister={handleRegister} />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        </div>
-      </Router>
-    );
+  if (location.pathname === '/login') {
+    return <Login onLogin={handleLogin} error={error} />;
+  }
+  if (location.pathname === '/register') {
+    return <Register onRegister={handleRegister} error={error} />;
   }
 
   return (
@@ -230,15 +252,29 @@ function App() {
           <div className="sidebar-header">
             <h2>AI Chatbot</h2>
             <div className="user-info">
-              <span>Hoş geldin, {currentUser?.username}!</span>
-              <button onClick={handleLogout} className="logout-btn">
-                {t.logout}
-              </button>
+              {currentUser ? (
+                <>
+                  <span>Hoş geldin, {currentUser.username}!</span>
+                  <button onClick={handleLogout} className="logout-btn">
+                    {t.logout}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => window.location.href = '/login'}
+                  className="login-btn"
+                >
+                  {t.login}
+                </button>
+              )}
             </div>
           </div>
           
           <div className="controls">
-            <button onClick={createNewChat} className="new-chat-btn">
+            <button 
+              onClick={createNewChat} 
+              className="new-chat-btn"
+            >
               {t.newChat}
             </button>
             
@@ -268,24 +304,54 @@ function App() {
               <div
                 key={chat.id}
                 className={`chat-item ${currentChatId === chat.id ? 'active' : ''}`}
-                onClick={() => selectChat(chat.id)}
               >
-                <span className="chat-title">{chat.title}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteChat(chat.id);
+                <input
+                  type="text"
+                  value={chat.title}
+                  onChange={(e) => {
+                    const newChats = chats.map(c => 
+                      c.id === chat.id ? { ...c, title: e.target.value } : c
+                    );
+                    setChats(newChats);
                   }}
-                  className="delete-chat-btn"
-                >
-                  {t.delete}
-                </button>
+                  onBlur={(e) => updateChatTitle(chat.id, e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.target.blur();
+                    }
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="chat-title-input"
+                />
+                <div className="chat-item-buttons">
+                  <button
+                    onClick={() => selectChat(chat.id)}
+                    className="select-chat-btn"
+                  >
+                    Seç
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteChat(chat.id);
+                    }}
+                    className="delete-chat-btn"
+                  >
+                    {t.delete}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </div>
 
         <div className="main-chat">
+          {error && (
+            <div className="error-message">
+              {t.error}: {error}
+            </div>
+          )}
+          
           {currentChatId ? (
             <>
               <div className="messages-container">
@@ -337,13 +403,23 @@ function App() {
             </>
           ) : (
             <div className="welcome-message">
-              <h3>AI Chatbot'a Hoş Geldiniz!</h3>
-              <p>Sohbete başlamak için yeni bir chat oluşturun.</p>
+              <h3>{t.welcome}</h3>
+              <p>{t.startChat}</p>
             </div>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="*" element={<AppContent />} />
+      </Routes>
+    </Router>
   );
 }
 
