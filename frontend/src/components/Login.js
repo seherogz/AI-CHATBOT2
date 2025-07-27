@@ -2,46 +2,42 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import './Auth.css';
 
-const Login = ({ onLogin }) => {
+const Login = ({ onLogin, error, isLoading }) => {
   const [formData, setFormData] = useState({
     username: '',
     password: ''
   });
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [localError, setLocalError] = useState('');
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
-    setError('');
+    setLocalError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!formData.username || !formData.password) {
-      setError('Lütfen tüm alanları doldurun');
+      setLocalError('Lütfen tüm alanları doldurun');
       return;
     }
-
-    setIsLoading(true);
-    setError('');
 
     try {
       const result = await onLogin(formData.username, formData.password);
       
       if (!result.success) {
-        setError(result.error || 'Giriş yapılırken bir hata oluştu');
+        setLocalError(result.error || 'Giriş yapılırken bir hata oluştu');
       }
     } catch (error) {
       console.error('Login error:', error);
-      setError('Giriş yapılırken bir hata oluştu');
-    } finally {
-      setIsLoading(false);
+      setLocalError(error.message || 'Giriş yapılırken bir hata oluştu');
     }
   };
+
+  const displayError = error || localError;
 
   return (
     <div className="auth-container">
@@ -52,7 +48,12 @@ const Login = ({ onLogin }) => {
         </div>
         
         <form onSubmit={handleSubmit} className="auth-form">
-          {error && <div className="error-message">{error}</div>}
+          {displayError && (
+            <div className="error-message auth-error">
+              <span className="error-icon">⚠️</span>
+              {displayError}
+            </div>
+          )}
           
           <div className="form-group">
             <label htmlFor="username">Kullanıcı Adı</label>
@@ -65,6 +66,7 @@ const Login = ({ onLogin }) => {
               placeholder="Kullanıcı adınızı girin"
               disabled={isLoading}
               required
+              className={displayError ? 'error-input' : ''}
             />
           </div>
 
@@ -79,6 +81,7 @@ const Login = ({ onLogin }) => {
               placeholder="Şifrenizi girin"
               disabled={isLoading}
               required
+              className={displayError ? 'error-input' : ''}
             />
           </div>
 

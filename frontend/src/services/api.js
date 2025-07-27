@@ -1,38 +1,79 @@
 import axios from 'axios';
 
 const apiClient = axios.create({
-  baseURL: 'http://localhost:5000',
+  baseURL: 'http://localhost:5001',
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   }
 });
 
-// Interceptor ekleyelim
+// Token yönetimi
+const getToken = () => localStorage.getItem('token');
+const setToken = (token) => {
+  if (token) {
+    localStorage.setItem('token', token);
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  }
+};
+const removeToken = () => {
+  localStorage.removeItem('token');
+  delete apiClient.defaults.headers.common['Authorization'];
+};
+
+// Request interceptor - her istekte token ekle
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor
 apiClient.interceptors.response.use(
   response => response,
   error => {
     console.error('API Error:', error);
+    
+    // 401/403 hatalarını yakala ama logout yapma (login/register için)
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      // Sadece profile ve chat işlemleri için logout yap
+      const url = error.config?.url || '';
+      if (!url.includes('/auth/login') && !url.includes('/auth/register')) {
+        removeToken();
+        window.location.href = '/login';
+      }
+    }
+    
     if (error.response) {
+      // Backend'den gelen hata mesajını kullan
+      const errorData = error.response.data;
       return Promise.reject({
         success: false,
-        message: error.response.data?.message || 'Bir hata oluştu',
-        error: error.response.data
+        message: errorData?.message || 'Bir hata oluştu',
+        status: error.response.status,
+        error: errorData
       });
     }
     if (error.request) {
-      // İstek yapıldı ama yanıt alınamadı
       console.error('No response received:', error.request);
       return Promise.reject({
         success: false,
         message: 'Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.',
+        status: 0,
         error: error.request
       });
     }
-    // İstek oluşturulurken hata oluştu
     return Promise.reject({
       success: false,
       message: 'İstek gönderilemedi',
+      status: 0,
       error: error
     });
   }
@@ -43,6 +84,9 @@ class ApiService {
   async login(username, password) {
     try {
       const response = await apiClient.post('/api/auth/login', { username, password });
+      if (response.data.success) {
+        setToken(response.data.token);
+      }
       return response.data;
     } catch (error) {
       console.error('Login error:', error);
@@ -53,9 +97,40 @@ class ApiService {
   async register(username, email, password) {
     try {
       const response = await apiClient.post('/api/auth/register', { username, email, password });
+      if (response.data.success) {
+        setToken(response.data.token);
+      }
       return response.data;
     } catch (error) {
       console.error('Register error:', error);
+      return error;
+    }
+  }
+
+  async logout() {
+    try {
+      // Backend'e logout isteği gönder
+      const response = await apiClient.post('/api/auth/logout');
+      console.log('Logout response:', response.data);
+      
+      // Token'ı temizle
+      removeToken();
+      
+      return response.data;
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Hata olsa bile token'ı temizle
+      removeToken();
+      return error;
+    }
+  }
+
+  async getProfile() {
+    try {
+      const response = await apiClient.get('/api/auth/profile');
+      return response.data;
+    } catch (error) {
+      console.error('Get profile error:', error);
       return error;
     }
   }
@@ -121,6 +196,15 @@ class ApiService {
       console.error('Send message error:', error);
       return error;
     }
+  }
+
+  // Token yönetimi metodları
+  isAuthenticated() {
+    return !!getToken();
+  }
+
+  getStoredToken() {
+    return getToken();
   }
 }
 

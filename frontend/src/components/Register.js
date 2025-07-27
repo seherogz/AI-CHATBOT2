@@ -2,72 +2,54 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import './Auth.css';
 
-const Register = ({ onRegister }) => {
+const Register = ({ onRegister, error, isLoading }) => {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
     password: '',
     confirmPassword: ''
   });
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [localError, setLocalError] = useState('');
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
-    setError('');
-  };
-
-  const validateForm = () => {
-    if (!formData.username || !formData.email || !formData.password || !formData.confirmPassword) {
-      setError('Lütfen tüm alanları doldurun');
-      return false;
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      setError('Şifreler eşleşmiyor');
-      return false;
-    }
-
-    if (formData.password.length < 6) {
-      setError('Şifre en az 6 karakter olmalıdır');
-      return false;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      setError('Geçerli bir email adresi girin');
-      return false;
-    }
-
-    return true;
+    setLocalError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) {
+    if (!formData.username || !formData.email || !formData.password || !formData.confirmPassword) {
+      setLocalError('Lütfen tüm alanları doldurun');
       return;
     }
 
-    setIsLoading(true);
-    setError('');
+    if (formData.password !== formData.confirmPassword) {
+      setLocalError('Şifreler eşleşmiyor');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setLocalError('Şifre en az 6 karakter olmalıdır');
+      return;
+    }
 
     try {
       const result = await onRegister(formData.username, formData.email, formData.password);
       
       if (!result.success) {
-        setError(result.error || 'Kayıt olurken bir hata oluştu');
+        setLocalError(result.error || 'Kayıt olurken bir hata oluştu');
       }
     } catch (error) {
       console.error('Register error:', error);
-      setError('Kayıt olurken bir hata oluştu');
-    } finally {
-      setIsLoading(false);
+      setLocalError(error.message || 'Kayıt olurken bir hata oluştu');
     }
   };
+
+  const displayError = error || localError;
 
   return (
     <div className="auth-container">
@@ -78,7 +60,12 @@ const Register = ({ onRegister }) => {
         </div>
         
         <form onSubmit={handleSubmit} className="auth-form">
-          {error && <div className="error-message">{error}</div>}
+          {displayError && (
+            <div className="error-message auth-error">
+              <span className="error-icon">⚠️</span>
+              {displayError}
+            </div>
+          )}
           
           <div className="form-group">
             <label htmlFor="username">Kullanıcı Adı</label>
@@ -91,20 +78,22 @@ const Register = ({ onRegister }) => {
               placeholder="Kullanıcı adınızı girin"
               disabled={isLoading}
               required
+              className={displayError ? 'error-input' : ''}
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">E-posta</label>
             <input
               type="email"
               id="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
-              placeholder="Email adresinizi girin"
+              placeholder="E-posta adresinizi girin"
               disabled={isLoading}
               required
+              className={displayError ? 'error-input' : ''}
             />
           </div>
 
@@ -119,6 +108,7 @@ const Register = ({ onRegister }) => {
               placeholder="Şifrenizi girin"
               disabled={isLoading}
               required
+              className={displayError ? 'error-input' : ''}
             />
           </div>
 
@@ -133,6 +123,7 @@ const Register = ({ onRegister }) => {
               placeholder="Şifrenizi tekrar girin"
               disabled={isLoading}
               required
+              className={displayError ? 'error-input' : ''}
             />
           </div>
 

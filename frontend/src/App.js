@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import './App.css';
 import Login from './components/Login';
 import Register from './components/Register';
@@ -16,7 +16,56 @@ function AppContent() {
   const [error, setError] = useState(null);
   const [language, setLanguage] = useState('tr');
   const [darkMode, setDarkMode] = useState(false);
+  const [isLoadingChats, setIsLoadingChats] = useState(false);
   const messagesEndRef = useRef(null);
+  const loadChatsRef = useRef(false);
+  const navigate = useNavigate();
+
+  // Uygulama başladığında token kontrolü
+  useEffect(() => {
+    console.log('useEffect[1]: Token check started');
+    const checkAuth = async () => {
+      if (api.isAuthenticated()) {
+        try {
+          console.log('useEffect[1]: User is authenticated, checking profile...');
+          const response = await api.getProfile();
+          if (response.success) {
+            console.log('useEffect[1]: Profile check successful, setting auth state');
+            setIsAuthenticated(true);
+            setCurrentUser(response.user);
+            // Eğer login sayfasındaysa chat ekranına yönlendir
+            if (window.location.pathname === '/login') {
+              navigate('/');
+            }
+          } else {
+            console.log('useEffect[1]: Profile check failed, logging out');
+            api.logout();
+            setIsAuthenticated(false);
+            setCurrentUser(null);
+          }
+        } catch (error) {
+          console.error('useEffect[1]: Auth check failed:', error);
+          api.logout();
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+        }
+      } else {
+        console.log('useEffect[1]: No token found');
+      }
+    };
+
+    checkAuth();
+  }, [navigate]);
+
+  // Giriş yapıldığında chatleri yükle - sadece bu useEffect'te loadChats çağır
+  useEffect(() => {
+    console.log('useEffect[2]: Auth state changed:', { isAuthenticated, currentUser: currentUser?.username });
+    if (isAuthenticated && currentUser && !loadChatsRef.current) {
+      console.log('useEffect[2]: Loading chats for authenticated user:', currentUser.username);
+      loadChatsRef.current = true;
+      loadChats();
+    }
+  }, [isAuthenticated, currentUser]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -29,54 +78,96 @@ function AppContent() {
   const handleLogin = async (username, password) => {
     try {
       setError(null);
+      setIsLoading(true);
+      
+      console.log('Attempting login with:', { username });
       const response = await api.login(username, password);
+      console.log('Login response:', response);
       
       if (response.success) {
         setIsAuthenticated(true);
         setCurrentUser(response.user);
-        await loadChats();
+        // loadChats() çağrısını kaldırdık çünkü useEffect'te zaten çağrılıyor
+        // Başarılı giriş sonrası chat ekranına yönlendir
+        navigate('/');
         return { success: true };
       } else {
-        setError(response.message);
-        return { success: false, error: response.message };
+        // Backend'den gelen hata mesajını kullan
+        const errorMessage = response.message || 'Giriş yapılırken bir hata oluştu';
+        setError(errorMessage);
+        return { success: false, error: errorMessage };
       }
     } catch (error) {
-      setError(error.message);
-      return { success: false, error: error.message };
+      console.error('Login error:', error);
+      // API'den gelen hata mesajını kullan
+      const errorMessage = error.message || 'Giriş yapılırken bir hata oluştu';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleRegister = async (username, email, password) => {
     try {
       setError(null);
+      setIsLoading(true);
+      
+      console.log('Attempting register with:', { username, email });
       const response = await api.register(username, email, password);
+      console.log('Register response:', response);
       
       if (response.success) {
         setIsAuthenticated(true);
         setCurrentUser(response.user);
-        await loadChats();
+        // loadChats() çağrısını kaldırdık çünkü useEffect'te zaten çağrılıyor
+        // Başarılı kayıt sonrası chat ekranına yönlendir
+        navigate('/');
         return { success: true };
       } else {
-        setError(response.message);
-        return { success: false, error: response.message };
+        // Backend'den gelen hata mesajını kullan
+        const errorMessage = response.message || 'Kayıt olurken bir hata oluştu';
+        setError(errorMessage);
+        return { success: false, error: errorMessage };
       }
     } catch (error) {
-      setError(error.message);
-      return { success: false, error: error.message };
+      console.error('Register error:', error);
+      // API'den gelen hata mesajını kullan
+      const errorMessage = error.message || 'Kayıt olurken bir hata oluştu';
+      setError(errorMessage);
+      return { success: false, error: errorMessage };
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const loadChats = async () => {
+    // Eğer zaten yükleniyorsa, tekrar çağırma
+    if (isLoadingChats) {
+      console.log('loadChats: Already loading, skipping duplicate call');
+      return;
+    }
+    
+    console.log('loadChats: Starting to load chats...');
     try {
+      setIsLoadingChats(true);
       setError(null);
       const response = await api.getChats();
+      console.log('loadChats: Response received:', response);
+      
       if (response.success) {
         setChats(response.chats || []);
+        console.log('loadChats: Chats loaded successfully, count:', response.chats?.length || 0);
       } else {
         setError(response.message);
+        console.log('loadChats: Error loading chats:', response.message);
       }
     } catch (error) {
+      console.error('loadChats: Exception occurred:', error);
       setError(error.message);
+    } finally {
+      setIsLoadingChats(false);
+      console.log('loadChats: Finished loading chats');
     }
   };
 
@@ -84,40 +175,24 @@ function AppContent() {
     try {
       setError(null);
       setIsLoading(true);
+      
       console.log('Creating new chat...');
-      const defaultTitle = `Yeni Sohbet ${chats.length + 1}`;
-      const response = await api.createChat(defaultTitle);
+      const response = await api.createChat(`Sohbet ${chats.length + 1}`);
       console.log('Create chat response:', response);
       
       if (response.success) {
-        console.log('Chat created successfully:', response.chat);
-        await loadChats();
+        // Yeni chat'i doğrudan state'e ekle, loadChats çağırma
+        setChats(prevChats => [...prevChats, response.chat]);
         setCurrentChatId(response.chat.id);
         setMessages([]);
       } else {
-        console.log('Failed to create chat:', response.message);
-        setError(response.message || 'Sohbet oluşturulamadı');
+        setError(response.message);
       }
     } catch (error) {
-      console.error('Error creating chat:', error);
-      setError(error.message || 'Sohbet oluşturulamadı');
+      console.error('Create chat error:', error);
+      setError(error.message);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const updateChatTitle = async (chatId, newTitle) => {
-    try {
-      setError(null);
-      const response = await api.updateChatTitle(chatId, newTitle);
-      
-      if (response.success) {
-        await loadChats();
-      } else {
-        setError(response.message || 'Başlık güncellenemedi');
-      }
-    } catch (error) {
-      setError(error.message || 'Başlık güncellenemedi');
     }
   };
 
@@ -125,7 +200,10 @@ function AppContent() {
     try {
       setError(null);
       setCurrentChatId(chatId);
+      
+      console.log('Selecting chat:', chatId);
       const response = await api.getChatMessages(chatId);
+      console.log('Get messages response:', response);
       
       if (response.success) {
         setMessages(response.messages || []);
@@ -133,6 +211,7 @@ function AppContent() {
         setError(response.message);
       }
     } catch (error) {
+      console.error('Select chat error:', error);
       setError(error.message);
     }
   };
@@ -155,7 +234,7 @@ function AppContent() {
     try {
       console.log('Sending message:', { chatId: currentChatId, message: inputMessage });
       const response = await api.sendMessage(currentChatId, inputMessage);
-      console.log('Message response:', response);
+      console.log('Send message response:', response);
       
       if (response.success && response.aiResponse) {
         const aiMessage = {
@@ -166,12 +245,11 @@ function AppContent() {
         };
         setMessages(prev => [...prev, aiMessage]);
       } else {
-        setError(response.message || 'Mesaj gönderilemedi');
-        console.log('Failed to send message:', response.message);
+        setError(response.message);
       }
     } catch (error) {
-      console.error('Error sending message:', error);
-      setError(error.message || 'Mesaj gönderilemedi');
+      console.error('Send message error:', error);
+      setError(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -180,10 +258,14 @@ function AppContent() {
   const deleteChat = async (chatId) => {
     try {
       setError(null);
+      
+      console.log('Deleting chat:', chatId);
       const response = await api.deleteChat(chatId);
+      console.log('Delete chat response:', response);
       
       if (response.success) {
-        await loadChats();
+        // Silinen chat'i doğrudan state'den çıkar, loadChats çağırma
+        setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
         if (currentChatId === chatId) {
           setCurrentChatId(null);
           setMessages([]);
@@ -192,18 +274,42 @@ function AppContent() {
         setError(response.message);
       }
     } catch (error) {
+      console.error('Delete chat error:', error);
       setError(error.message);
     }
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setCurrentUser(null);
-    setChats([]);
-    setCurrentChatId(null);
-    setMessages([]);
-    setError(null);
-    localStorage.clear();
+  const handleLogout = async () => {
+    try {
+      console.log('Logging out...');
+      
+      // Backend'e logout isteği gönder
+      const response = await api.logout();
+      console.log('Logout response:', response);
+      
+      // State'i temizle
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      setChats([]);
+      setCurrentChatId(null);
+      setMessages([]);
+      setError(null);
+      loadChatsRef.current = false; // Ref'i sıfırla
+      
+      // Logout sonrası login sayfasına yönlendir
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Hata olsa bile state'i temizle
+      setIsAuthenticated(false);
+      setCurrentUser(null);
+      setChats([]);
+      setCurrentChatId(null);
+      setMessages([]);
+      setError(null);
+      loadChatsRef.current = false;
+      navigate('/login');
+    }
   };
 
   const translations = {
@@ -218,7 +324,8 @@ function AppContent() {
       welcome: 'Welcome to AI Chatbot!',
       startChat: 'Create a new chat to start conversation.',
       error: 'Error',
-      login: 'Login'
+      login: 'Login',
+      register: 'Register'
     },
     tr: {
       newChat: 'Yeni Sohbet',
@@ -231,18 +338,31 @@ function AppContent() {
       welcome: 'AI Chatbot\'a Hoş Geldiniz!',
       startChat: 'Sohbete başlamak için yeni bir chat oluşturun.',
       error: 'Hata',
-      login: 'Giriş Yap'
+      login: 'Giriş Yap',
+      register: 'Kayıt Ol'
     }
   };
 
   const t = translations[language];
   const location = useLocation();
 
+  // Giriş yapmamış kullanıcıları login sayfasına yönlendir
+  useEffect(() => {
+    if (!isAuthenticated && location.pathname !== '/login' && location.pathname !== '/register') {
+      navigate('/login');
+    }
+  }, [isAuthenticated, location.pathname, navigate]);
+
   if (location.pathname === '/login') {
-    return <Login onLogin={handleLogin} error={error} />;
+    return <Login onLogin={handleLogin} error={error} isLoading={isLoading} />;
   }
   if (location.pathname === '/register') {
-    return <Register onRegister={handleRegister} error={error} />;
+    return <Register onRegister={handleRegister} error={error} isLoading={isLoading} />;
+  }
+
+  // Giriş yapmamış kullanıcılar için login sayfasını göster
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} error={error} isLoading={isLoading} />;
   }
 
   return (
@@ -260,12 +380,20 @@ function AppContent() {
                   </button>
                 </>
               ) : (
-                <button
-                  onClick={() => window.location.href = '/login'}
-                  className="login-btn"
-                >
-                  {t.login}
-                </button>
+                <div className="auth-buttons">
+                  <button
+                    onClick={() => window.location.href = '/login'}
+                    className="login-btn"
+                  >
+                    {t.login}
+                  </button>
+                  <button
+                    onClick={() => window.location.href = '/register'}
+                    className="register-btn"
+                  >
+                    {t.register}
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -274,6 +402,7 @@ function AppContent() {
             <button 
               onClick={createNewChat} 
               className="new-chat-btn"
+              disabled={isLoading}
             >
               {t.newChat}
             </button>
@@ -304,32 +433,10 @@ function AppContent() {
               <div
                 key={chat.id}
                 className={`chat-item ${currentChatId === chat.id ? 'active' : ''}`}
+                onClick={() => selectChat(chat.id)}
               >
-                <input
-                  type="text"
-                  value={chat.title}
-                  onChange={(e) => {
-                    const newChats = chats.map(c => 
-                      c.id === chat.id ? { ...c, title: e.target.value } : c
-                    );
-                    setChats(newChats);
-                  }}
-                  onBlur={(e) => updateChatTitle(chat.id, e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.target.blur();
-                    }
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="chat-title-input"
-                />
-                <div className="chat-item-buttons">
-                  <button
-                    onClick={() => selectChat(chat.id)}
-                    className="select-chat-btn"
-                  >
-                    Seç
-                  </button>
+                <span className="chat-title">{chat.title}</span>
+                {isAuthenticated && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -339,7 +446,7 @@ function AppContent() {
                   >
                     {t.delete}
                   </button>
-                </div>
+                )}
               </div>
             ))}
           </div>
@@ -417,7 +524,10 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="*" element={<AppContent />} />
+        <Route path="/login" element={<AppContent />} />
+        <Route path="/register" element={<AppContent />} />
+        <Route path="/" element={<AppContent />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

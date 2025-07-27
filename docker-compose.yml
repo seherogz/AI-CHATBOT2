@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: ai-chatbot-postgres
+    environment:
+      POSTGRES_DB: ai_chatbot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ai-chatbot-network
+
+  backend:
+    build: ./backend
+    container_name: ai-chatbot-backend
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://postgres:postgres123@postgres:5432/ai_chatbot
+      JWT_SECRET: your-super-secret-jwt-key-here
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+    ports:
+      - "5001:5000"
+    depends_on:
+      - postgres
+    networks:
+      - ai-chatbot-network
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:
+
+networks:
+  ai-chatbot-network:
+    driver: bridge 
