@@ -451,48 +451,50 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
 
     let aiResponse = 'Üzgünüm, şu anda AI servisi ile bağlantı kuramıyorum. Lütfen daha sonra tekrar deneyin.';
 
-    // Gemini API çağrısı
-    if (process.env.GEMINI_API_KEY) {
+    // OpenRouter API çağrısı
+    if (process.env.OPENROUTER_API_KEY) {
       try {
-        console.log('Calling Gemini API...');
+        console.log('Calling OpenRouter API...');
         
-        // Gemini API için mesaj formatını hazırla
-        const geminiMessages = apiMessages.map(msg => ({
-          role: msg.role === 'system' ? 'user' : msg.role,
-          parts: [{ text: msg.content }]
+        // OpenRouter API için mesaj formatını hazırla
+        const openRouterMessages = apiMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
         }));
 
-        console.log('Gemini API request:', {
-          url: `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
-          messages: geminiMessages
+        console.log('OpenRouter API request:', {
+          url: 'https://openrouter.ai/api/v1/chat/completions',
+          messages: openRouterMessages
         });
 
         const response = await axios.post(
-          `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          'https://openrouter.ai/api/v1/chat/completions',
           {
-            contents: geminiMessages,
-            generationConfig: {
-              maxOutputTokens: 500,
-              temperature: 0.7
-            }
+            model: 'openai/gpt-3.5-turbo',
+            messages: openRouterMessages,
+            max_tokens: 500,
+            temperature: 0.7
           },
           { 
             headers: { 
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              'HTTP-Referer': 'http://localhost:3000',
+              'X-Title': 'AI Chatbot'
             } 
           }
         );
         
-        if (response.data && response.data.candidates && response.data.candidates[0]) {
-          aiResponse = response.data.candidates[0].content.parts[0].text;
-          console.log('Gemini Response received:', aiResponse);
+        if (response.data && response.data.choices && response.data.choices[0]) {
+          aiResponse = response.data.choices[0].message.content;
+          console.log('OpenRouter Response received:', aiResponse);
         }
       } catch (apiError) {
-        console.error('Gemini API Hatası:', apiError.response ? apiError.response.data : apiError.message);
+        console.error('OpenRouter API Hatası:', apiError.response ? apiError.response.data : apiError.message);
         aiResponse = 'AI servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.';
       }
     } else {
-      console.warn('GEMINI_API_KEY not found in environment variables');
+      console.warn('OPENROUTER_API_KEY not found in environment variables');
       aiResponse = 'AI servisi yapılandırılmamış. Lütfen API anahtarını ayarlayın.';
     }
 
