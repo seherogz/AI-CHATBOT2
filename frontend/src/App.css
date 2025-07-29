@@ -206,6 +206,17 @@ body {
   color: #fff;
 }
 
+.chat-item-actions {
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.chat-item:hover .chat-item-actions {
+  opacity: 1;
+}
+
 .chat-item-buttons {
   display: flex;
   gap: 8px;
@@ -308,6 +319,111 @@ body {
   color: #C55A7D;
 }
 
+/* Chat Title Editing */
+.chat-edit-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.chat-title-edit-input {
+  padding: 8px 12px;
+  border: 2px solid var(--color3);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  outline: none;
+  background: var(--white);
+  color: var(--dark-gray);
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.chat-title-edit-input:focus {
+  border-color: var(--color4);
+  box-shadow: 0 0 0 3px rgba(189, 88, 103, 0.1);
+}
+
+.chat-edit-buttons {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.save-chat-edit-btn,
+.cancel-chat-edit-btn {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.save-chat-edit-btn {
+  background: var(--color4);
+  color: var(--white);
+}
+
+.save-chat-edit-btn:hover:not(:disabled) {
+  background: var(--color3);
+  transform: translateY(-1px);
+}
+
+.cancel-chat-edit-btn {
+  background: #6c757d;
+  color: var(--white);
+}
+
+.cancel-chat-edit-btn:hover:not(:disabled) {
+  background: #5a6268;
+  transform: translateY(-1px);
+}
+
+.save-chat-edit-btn:disabled,
+.cancel-chat-edit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.edit-chat-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: all 0.3s ease;
+  opacity: 0.7;
+}
+
+.edit-chat-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Dark mode for chat editing */
+.app.dark-mode .chat-title-edit-input {
+  background: #3a3a3a;
+  color: var(--white);
+  border-color: #555;
+}
+
+.app.dark-mode .chat-title-edit-input:focus {
+  background: #444;
+  border-color: var(--color3);
+}
+
+.app.dark-mode .edit-chat-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 /* Main Chat Area */
 .main-chat {
   flex: 1;
@@ -371,6 +487,127 @@ body {
 
 .ai-message .message-time {
   text-align: left;
+}
+
+/* Message Actions */
+.message-actions {
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  margin-top: 5px;
+}
+
+.message:hover .message-actions {
+  opacity: 1;
+}
+
+.edit-message-btn,
+.delete-message-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  opacity: 0.7;
+}
+
+.edit-message-btn:hover,
+.delete-message-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.user-message .edit-message-btn:hover,
+.user-message .delete-message-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Message Edit Container */
+.message-edit-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.message-edit-input {
+  padding: 12px 16px;
+  border: 2px solid var(--color3);
+  border-radius: 15px;
+  font-size: 0.95rem;
+  outline: none;
+  background: var(--white);
+  color: var(--dark-gray);
+  transition: all 0.3s ease;
+}
+
+.message-edit-input:focus {
+  border-color: var(--color4);
+  box-shadow: 0 0 0 3px rgba(189, 88, 103, 0.1);
+}
+
+.message-edit-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.save-edit-btn,
+.cancel-edit-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.save-edit-btn {
+  background: var(--color4);
+  color: var(--white);
+}
+
+.save-edit-btn:hover:not(:disabled) {
+  background: var(--color3);
+  transform: translateY(-1px);
+}
+
+.cancel-edit-btn {
+  background: #6c757d;
+  color: var(--white);
+}
+
+.cancel-edit-btn:hover:not(:disabled) {
+  background: #5a6268;
+  transform: translateY(-1px);
+}
+
+.save-edit-btn:disabled,
+.cancel-edit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Dark mode for message editing */
+.app.dark-mode .message-edit-input {
+  background: #3a3a3a;
+  color: var(--white);
+  border-color: #555;
+}
+
+.app.dark-mode .message-edit-input:focus {
+  background: #444;
+  border-color: var(--color3);
+}
+
+.app.dark-mode .edit-message-btn:hover,
+.app.dark-mode .delete-message-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .typing-indicator {

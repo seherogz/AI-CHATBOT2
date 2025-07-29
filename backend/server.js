@@ -425,6 +425,8 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
       chatId: chat.id
     });
 
+    console.log('User message created with ID:', userMessage.id);
+
     // OpenRouter API için mesajları hazırla
     const systemMessage = {
       role: 'system',
@@ -449,36 +451,48 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
 
     let aiResponse = 'Üzgünüm, şu anda AI servisi ile bağlantı kuramıyorum. Lütfen daha sonra tekrar deneyin.';
 
-    // OpenRouter API çağrısı
-    if (process.env.OPENROUTER_API_KEY) {
+    // Gemini API çağrısı
+    if (process.env.GEMINI_API_KEY) {
       try {
-        console.log('Calling OpenRouter API...');
+        console.log('Calling Gemini API...');
+        
+        // Gemini API için mesaj formatını hazırla
+        const geminiMessages = apiMessages.map(msg => ({
+          role: msg.role === 'system' ? 'user' : msg.role,
+          parts: [{ text: msg.content }]
+        }));
+
+        console.log('Gemini API request:', {
+          url: `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          messages: geminiMessages
+        });
+
         const response = await axios.post(
-          'https://openrouter.ai/api/v1/chat/completions',
-          { 
-            model: 'mistralai/mistral-7b-instruct:free', 
-            messages: apiMessages,
-            max_tokens: 500,
-            temperature: 0.7
+          `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          {
+            contents: geminiMessages,
+            generationConfig: {
+              maxOutputTokens: 500,
+              temperature: 0.7
+            }
           },
           { 
             headers: { 
-              'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
               'Content-Type': 'application/json'
             } 
           }
         );
         
-        if (response.data && response.data.choices && response.data.choices[0]) {
-          aiResponse = response.data.choices[0].message.content;
-          console.log('AI Response received:', aiResponse);
+        if (response.data && response.data.candidates && response.data.candidates[0]) {
+          aiResponse = response.data.candidates[0].content.parts[0].text;
+          console.log('Gemini Response received:', aiResponse);
         }
       } catch (apiError) {
-        console.error('OpenRouter API Hatası:', apiError.response ? apiError.response.data : apiError.message);
+        console.error('Gemini API Hatası:', apiError.response ? apiError.response.data : apiError.message);
         aiResponse = 'AI servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.';
       }
     } else {
-      console.warn('OPENROUTER_API_KEY not found in environment variables');
+      console.warn('GEMINI_API_KEY not found in environment variables');
       aiResponse = 'AI servisi yapılandırılmamış. Lütfen API anahtarını ayarlayın.';
     }
 
@@ -488,6 +502,8 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
       sender: 'ai',
       chatId: chat.id
     });
+
+    console.log('AI message created with ID:', aiMessage.id);
     
     chat.updatedAt = new Date();
     await chat.save();
@@ -497,7 +513,9 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
     res.status(200).json({ 
       success: true, 
       message: 'Mesaj gönderildi.',
-      aiResponse: aiResponse
+      aiResponse: aiResponse,
+      userMessageId: userMessage.id,
+      aiMessageId: aiMessage.id
     });
 
   } catch (error) {
@@ -505,6 +523,135 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: 'Mesaj gönderilemedi.' 
+    });
+  }
+});
+
+// Mesaj düzenle
+app.put('/api/chats/:chatId/messages/:messageId', optionalAuth, async (req, res) => {
+  try {
+    const { chatId, messageId } = req.params;
+    const { text } = req.body;
+    
+    console.log('Updating message:', { chatId, messageId, text });
+    
+    // Sohbet kontrolü
+    let whereClause = { id: chatId };
+    if (req.user) {
+      whereClause = {
+        id: chatId,
+        [require('sequelize').Op.or]: [
+          { userId: req.user.id },
+          { isAnonymous: true }
+        ]
+      };
+    } else {
+      whereClause = { id: chatId, isAnonymous: true };
+    }
+    
+    const chat = await Chat.findOne({ where: whereClause });
+    if (!chat) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Sohbet bulunamadı.' 
+      });
+    }
+
+    // Mesajı bul ve güncelle
+    const message = await Message.findOne({
+      where: { 
+        id: messageId, 
+        chatId: chatId,
+        sender: 'user' // Sadece kullanıcı mesajları düzenlenebilir
+      }
+    });
+
+    if (!message) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Mesaj bulunamadı.' 
+      });
+    }
+
+    message.text = text;
+    await message.save();
+
+    console.log('Message updated successfully:', messageId);
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Mesaj güncellendi.',
+      updatedMessage: message
+    });
+
+  } catch (error) {
+    console.error('Update message error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Mesaj güncellenemedi.' 
+    });
+  }
+});
+
+// Mesaj sil
+app.delete('/api/chats/:chatId/messages/:messageId', optionalAuth, async (req, res) => {
+  try {
+    const { chatId, messageId } = req.params;
+    
+    console.log('Deleting message:', { chatId, messageId });
+    
+    // Sohbet kontrolü
+    let whereClause = { id: chatId };
+    if (req.user) {
+      whereClause = {
+        id: chatId,
+        [require('sequelize').Op.or]: [
+          { userId: req.user.id },
+          { isAnonymous: true }
+        ]
+      };
+    } else {
+      whereClause = { id: chatId, isAnonymous: true };
+    }
+    
+    const chat = await Chat.findOne({ where: whereClause });
+    if (!chat) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Sohbet bulunamadı.' 
+      });
+    }
+
+    // Mesajı bul ve sil
+    const message = await Message.findOne({
+      where: { 
+        id: messageId, 
+        chatId: chatId,
+        sender: 'user' // Sadece kullanıcı mesajları silinebilir
+      }
+    });
+
+    if (!message) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Mesaj bulunamadı.' 
+      });
+    }
+
+    await message.destroy();
+
+    console.log('Message deleted successfully:', messageId);
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Mesaj silindi.'
+    });
+
+  } catch (error) {
+    console.error('Delete message error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Mesaj silinemedi.' 
     });
   }
 });

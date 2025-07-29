@@ -198,6 +198,26 @@ class ApiService {
     }
   }
 
+  async updateMessage(chatId, messageId, text) {
+    try {
+      const response = await apiClient.put(`/api/chats/${chatId}/messages/${messageId}`, { text });
+      return response.data;
+    } catch (error) {
+      console.error('Update message error:', error);
+      return error;
+    }
+  }
+
+  async deleteMessage(chatId, messageId) {
+    try {
+      const response = await apiClient.delete(`/api/chats/${chatId}/messages/${messageId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Delete message error:', error);
+      return error;
+    }
+  }
+
   // Token yönetimi metodları
   isAuthenticated() {
     return !!getToken();

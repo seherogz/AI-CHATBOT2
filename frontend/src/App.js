@@ -17,6 +17,10 @@ function AppContent() {
   const [language, setLanguage] = useState('tr');
   const [darkMode, setDarkMode] = useState(false);
   const [isLoadingChats, setIsLoadingChats] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editingText, setEditingText] = useState('');
+  const [editingChatId, setEditingChatId] = useState(null);
+  const [editingChatTitle, setEditingChatTitle] = useState('');
   const messagesEndRef = useRef(null);
   const loadChatsRef = useRef(false);
   const navigate = useNavigate();
@@ -219,14 +223,14 @@ function AppContent() {
   const sendMessage = async () => {
     if (!inputMessage.trim() || !currentChatId) return;
 
-    const userMessage = {
-      id: Date.now(),
+    const tempUserMessage = {
+      id: `temp_${Date.now()}`,
       text: inputMessage,
       sender: 'user',
       timestamp: new Date().toISOString()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages(prev => [...prev, tempUserMessage]);
     setInputMessage('');
     setIsLoading(true);
     setError(null);
@@ -236,19 +240,35 @@ function AppContent() {
       const response = await api.sendMessage(currentChatId, inputMessage);
       console.log('Send message response:', response);
       
-      if (response.success && response.aiResponse) {
+      if (response.success) {
+        // Backend'den dönen gerçek mesaj ID'lerini kullan
+        const realUserMessage = {
+          id: response.userMessageId || tempUserMessage.id,
+          text: inputMessage,
+          sender: 'user',
+          timestamp: new Date().toISOString()
+        };
+
         const aiMessage = {
-          id: Date.now() + 1,
+          id: response.aiMessageId || `ai_${Date.now()}`,
           text: response.aiResponse,
           sender: 'ai',
           timestamp: new Date().toISOString()
         };
-        setMessages(prev => [...prev, aiMessage]);
+
+        // Geçici mesajı gerçek mesajla değiştir
+        setMessages(prev => prev.map(msg => 
+          msg.id === tempUserMessage.id ? realUserMessage : msg
+        ).concat(aiMessage));
       } else {
+        // Hata durumunda geçici mesajı kaldır
+        setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
         setError(response.message);
       }
     } catch (error) {
       console.error('Send message error:', error);
+      // Hata durumunda geçici mesajı kaldır
+      setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
       setError(error.message);
     } finally {
       setIsLoading(false);
@@ -276,6 +296,115 @@ function AppContent() {
     } catch (error) {
       console.error('Delete chat error:', error);
       setError(error.message);
+    }
+  };
+
+  const startEditMessage = (messageId, currentText) => {
+    setEditingMessageId(messageId);
+    setEditingText(currentText);
+  };
+
+  const cancelEditMessage = () => {
+    setEditingMessageId(null);
+    setEditingText('');
+  };
+
+  const saveEditMessage = async (messageId) => {
+    if (!editingText.trim()) return;
+
+    // Eğer geçici ID ise (temp_ ile başlıyorsa), düzenlemeye izin verme
+    if (typeof messageId === 'string' && messageId.startsWith('temp_')) {
+      setError('Bu mesaj henüz kaydedilmedi, düzenlenemez.');
+      setEditingMessageId(null);
+      setEditingText('');
+      return;
+    }
+
+    try {
+      setError(null);
+      setIsLoading(true);
+      
+      console.log('Updating message:', { chatId: currentChatId, messageId, text: editingText });
+      const response = await api.updateMessage(currentChatId, messageId, editingText);
+      console.log('Update message response:', response);
+      
+      if (response.success) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageId ? { ...msg, text: editingText } : msg
+        ));
+        setEditingMessageId(null);
+        setEditingText('');
+      } else {
+        setError(response.message);
+      }
+    } catch (error) {
+      console.error('Update message error:', error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteMessage = async (messageId) => {
+    // Eğer geçici ID ise (temp_ ile başlıyorsa), sadece frontend'den kaldır
+    if (typeof messageId === 'string' && messageId.startsWith('temp_')) {
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+      return;
+    }
+
+    try {
+      setError(null);
+      
+      console.log('Deleting message:', { chatId: currentChatId, messageId });
+      const response = await api.deleteMessage(currentChatId, messageId);
+      console.log('Delete message response:', response);
+      
+      if (response.success) {
+        setMessages(prev => prev.filter(msg => msg.id !== messageId));
+      } else {
+        setError(response.message);
+      }
+    } catch (error) {
+      console.error('Delete message error:', error);
+      setError(error.message);
+    }
+  };
+
+  const startEditChatTitle = (chatId, currentTitle) => {
+    setEditingChatId(chatId);
+    setEditingChatTitle(currentTitle);
+  };
+
+  const cancelEditChatTitle = () => {
+    setEditingChatId(null);
+    setEditingChatTitle('');
+  };
+
+  const saveEditChatTitle = async (chatId) => {
+    if (!editingChatTitle.trim()) return;
+
+    try {
+      setError(null);
+      setIsLoading(true);
+      
+      console.log('Updating chat title:', { chatId, title: editingChatTitle });
+      const response = await api.updateChatTitle(chatId, editingChatTitle);
+      console.log('Update chat title response:', response);
+      
+      if (response.success) {
+        setChats(prev => prev.map(chat => 
+          chat.id === chatId ? { ...chat, title: editingChatTitle } : chat
+        ));
+        setEditingChatId(null);
+        setEditingChatTitle('');
+      } else {
+        setError(response.message);
+      }
+    } catch (error) {
+      console.error('Update chat title error:', error);
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -435,17 +564,62 @@ function AppContent() {
                 className={`chat-item ${currentChatId === chat.id ? 'active' : ''}`}
                 onClick={() => selectChat(chat.id)}
               >
-                <span className="chat-title">{chat.title}</span>
-                {isAuthenticated && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteChat(chat.id);
-                    }}
-                    className="delete-chat-btn"
-                  >
-                    {t.delete}
-                  </button>
+                {editingChatId === chat.id ? (
+                  // Düzenleme modu
+                  <div className="chat-edit-container">
+                    <input
+                      type="text"
+                      value={editingChatTitle}
+                      onChange={(e) => setEditingChatTitle(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && saveEditChatTitle(chat.id)}
+                      className="chat-title-edit-input"
+                      autoFocus
+                    />
+                    <div className="chat-edit-buttons">
+                      <button
+                        onClick={() => saveEditChatTitle(chat.id)}
+                        className="save-chat-edit-btn"
+                        disabled={isLoading}
+                      >
+                        ✓
+                      </button>
+                      <button
+                        onClick={cancelEditChatTitle}
+                        className="cancel-chat-edit-btn"
+                        disabled={isLoading}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // Normal görünüm
+                  <>
+                    <span className="chat-title">{chat.title}</span>
+                    <div className="chat-item-actions">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEditChatTitle(chat.id, chat.title);
+                        }}
+                        className="edit-chat-btn"
+                        title="Düzenle"
+                      >
+                        ✏️
+                      </button>
+                      {isAuthenticated && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteChat(chat.id);
+                          }}
+                          className="delete-chat-btn"
+                        >
+                          {t.delete}
+                        </button>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             ))}
@@ -467,12 +641,65 @@ function AppContent() {
                     key={message.id}
                     className={`message ${message.sender === 'user' ? 'user-message' : 'ai-message'}`}
                   >
-                    <div className="message-content">
-                      {message.text}
-                    </div>
-                    <div className="message-time">
-                      {new Date(message.timestamp).toLocaleTimeString()}
-                    </div>
+                    {editingMessageId === message.id ? (
+                      // Düzenleme modu
+                      <div className="message-edit-container">
+                        <input
+                          type="text"
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && saveEditMessage(message.id)}
+                          className="message-edit-input"
+                          autoFocus
+                        />
+                        <div className="message-edit-buttons">
+                          <button
+                            onClick={() => saveEditMessage(message.id)}
+                            className="save-edit-btn"
+                            disabled={isLoading}
+                          >
+                            Kaydet
+                          </button>
+                          <button
+                            onClick={cancelEditMessage}
+                            className="cancel-edit-btn"
+                            disabled={isLoading}
+                          >
+                            İptal
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // Normal görünüm
+                      <>
+                        <div className="message-content">
+                          {message.text}
+                        </div>
+                        <div className="message-actions">
+                          {message.sender === 'user' && (
+                            <>
+                              <button
+                                onClick={() => startEditMessage(message.id, message.text)}
+                                className="edit-message-btn"
+                                title="Düzenle"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => deleteMessage(message.id)}
+                                className="delete-message-btn"
+                                title="Sil"
+                              >
+                                🗑️
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        <div className="message-time">
+                          {new Date(message.timestamp).toLocaleTimeString()}
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
                 {isLoading && (
