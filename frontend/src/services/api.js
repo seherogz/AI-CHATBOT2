@@ -188,9 +188,13 @@ class ApiService {
     }
   }
 
-  async sendMessage(chatId, message) {
+  async sendMessage(chatId, message, model = 'openai/gpt-3.5-turbo', language = 'tr') {
     try {
-      const response = await apiClient.post(`/api/chats/${chatId}/messages`, { message });
+      const response = await apiClient.post(`/api/chats/${chatId}/messages`, { 
+        message, 
+        model, 
+        language 
+      });
       return response.data;
     } catch (error) {
       console.error('Send message error:', error);
