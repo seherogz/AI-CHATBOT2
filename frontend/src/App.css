@@ -489,6 +489,22 @@ body {
   word-wrap: break-word;
 }
 
+.original-text {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: #666;
+  border-left: 3px solid #ddd;
+}
+
+.user-message .original-text {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  border-left-color: rgba(255, 255, 255, 0.3);
+}
+
 .user-message .message-content {
   background: linear-gradient(135deg, var(--color3) 0%, var(--color4) 100%);
   color: var(--white);
@@ -863,6 +879,18 @@ body {
   background: #3a3a3a;
   color: var(--white);
   border-color: #444;
+}
+
+.app.dark-mode .original-text {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+  border-left-color: #555;
+}
+
+.app.dark-mode .user-message .original-text {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8);
+  border-left-color: rgba(255, 255, 255, 0.4);
 }
 
 .app.dark-mode .input-container {

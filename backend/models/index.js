@@ -43,6 +43,14 @@ const User = sequelize.define('User', {
   isActive: {
     type: Sequelize.BOOLEAN,
     defaultValue: true
+  },
+  preferredModel: {
+    type: Sequelize.STRING,
+    defaultValue: 'openai/gpt-3.5-turbo'
+  },
+  preferredLanguage: {
+    type: Sequelize.STRING,
+    defaultValue: 'tr'
   }
 }, {
   hooks: {
@@ -94,6 +102,10 @@ const Message = sequelize.define('Message', {
   text: {
     type: Sequelize.TEXT,
     allowNull: false
+  },
+  originalText: {
+    type: Sequelize.TEXT,
+    allowNull: true
   },
   sender: {
     type: Sequelize.ENUM('user', 'ai'),

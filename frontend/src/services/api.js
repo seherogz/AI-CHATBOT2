@@ -222,6 +222,19 @@ class ApiService {
     }
   }
 
+  async updateUserPreferences(model, language) {
+    try {
+      const response = await apiClient.post('/api/user/preferences', { 
+        model, 
+        language 
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Update preferences error:', error);
+      return error;
+    }
+  }
+
   // Token yönetimi metodları
   isAuthenticated() {
     return !!getToken();

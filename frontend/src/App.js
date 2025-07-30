@@ -19,6 +19,27 @@ function AppContent() {
   const [language, setLanguage] = useState('tr');
   const [selectedModel, setSelectedModel] = useState('openai/gpt-3.5-turbo');
   const [darkMode, setDarkMode] = useState(false);
+  
+  // Seçim değişikliklerini backend'e bildiren fonksiyonlar
+  const handleModelChange = async (newModel) => {
+    setSelectedModel(newModel);
+    try {
+      await api.updateUserPreferences(newModel, language);
+      console.log('Model preference updated:', newModel);
+    } catch (error) {
+      console.error('Failed to update model preference:', error);
+    }
+  };
+
+  const handleLanguageChange = async (newLanguage) => {
+    setLanguage(newLanguage);
+    try {
+      await api.updateUserPreferences(selectedModel, newLanguage);
+      console.log('Language preference updated:', newLanguage);
+    } catch (error) {
+      console.error('Failed to update language preference:', error);
+    }
+  };
   const [isLoadingChats, setIsLoadingChats] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingText, setEditingText] = useState('');
@@ -36,15 +57,24 @@ function AppContent() {
         try {
           console.log('useEffect[1]: User is authenticated, checking profile...');
           const response = await api.getProfile();
-          if (response.success) {
-            console.log('useEffect[1]: Profile check successful, setting auth state');
-            setIsAuthenticated(true);
-            setCurrentUser(response.user);
-            // Eğer login sayfasındaysa chat ekranına yönlendir
-            if (window.location.pathname === '/login') {
-              navigate('/');
-            }
-          } else {
+                  if (response.success) {
+          console.log('useEffect[1]: Profile check successful, setting auth state');
+          setIsAuthenticated(true);
+          setCurrentUser(response.user);
+          
+          // Kullanıcı tercihlerini yükle
+          if (response.user.preferredModel) {
+            setSelectedModel(response.user.preferredModel);
+          }
+          if (response.user.preferredLanguage) {
+            setLanguage(response.user.preferredLanguage);
+          }
+          
+          // Eğer login sayfasındaysa chat ekranına yönlendir
+          if (window.location.pathname === '/login') {
+            navigate('/');
+          }
+        } else {
             console.log('useEffect[1]: Profile check failed, logging out');
             api.logout();
             setIsAuthenticated(false);
@@ -213,7 +243,12 @@ function AppContent() {
       console.log('Get messages response:', response);
       
       if (response.success) {
-        setMessages(response.messages || []);
+        // Backend'den gelen mesajları doğrudan kullan
+        const messagesWithTimestamps = (response.messages || []).map(msg => ({
+          ...msg,
+          timestamp: msg.createdAt || new Date().toISOString()
+        }));
+        setMessages(messagesWithTimestamps);
       } else {
         setError(response.message);
       }
@@ -245,12 +280,13 @@ function AppContent() {
       
       if (response.success) {
         // Backend'den dönen gerçek mesaj ID'lerini kullan
-        const realUserMessage = {
-          id: response.userMessageId || tempUserMessage.id,
-          text: inputMessage,
-          sender: 'user',
-          timestamp: new Date().toISOString()
-        };
+                  const realUserMessage = {
+            id: response.userMessageId || tempUserMessage.id,
+            text: inputMessage, // Kullanıcının yazdığı mesaj
+            originalText: inputMessage, // Orijinal mesaj
+            sender: 'user',
+            timestamp: new Date().toISOString()
+          };
 
         const aiMessage = {
           id: response.aiMessageId || `ai_${Date.now()}`,
@@ -332,11 +368,45 @@ function AppContent() {
       console.log('Update message response:', response);
       
       if (response.success) {
+        // Mesajı güncelle
         setMessages(prev => prev.map(msg => 
           msg.id === messageId ? { ...msg, text: editingText } : msg
         ));
         setEditingMessageId(null);
         setEditingText('');
+        
+        // Düzenlenen mesaj kullanıcı mesajıysa, AI'ya tekrar gönder
+        const updatedMessage = messages.find(msg => msg.id === messageId);
+        if (updatedMessage && updatedMessage.sender === 'user') {
+          console.log('Re-sending edited message to AI:', editingText);
+          
+          // Düzenlenen mesajdan sonraki tüm mesajları frontend'den sil (backend'den silme)
+          const messageIndex = messages.findIndex(msg => msg.id === messageId);
+          
+          // Frontend'den düzenlenen mesajdan sonraki tüm mesajları sil
+          setMessages(prev => prev.slice(0, messageIndex + 1));
+          
+          console.log('Messages removed from frontend after edit');
+          
+          // AI'ya düzenlenen mesajı gönder
+          const aiResponse = await api.sendMessage(currentChatId, editingText, selectedModel, language);
+          console.log('AI response to edited message:', aiResponse);
+          
+          if (aiResponse.success) {
+            // Yeni AI mesajını ekle
+            const newAiMessage = {
+              id: aiResponse.aiMessageId || `temp_ai_${Date.now()}`,
+              text: aiResponse.aiResponse,
+              sender: 'ai',
+              timestamp: new Date().toISOString()
+            };
+            
+            setMessages(prev => [...prev, newAiMessage]);
+            scrollToBottom();
+          } else {
+            setError('AI yanıtı alınamadı: ' + aiResponse.message);
+          }
+        }
       } else {
         setError(response.message);
       }
@@ -527,7 +597,7 @@ function AppContent() {
     }
   };
 
-  const t = translations[language];
+  const t = translations[language] || translations['tr'];
   const location = useLocation();
 
   // Giriş yapmamış kullanıcıları login sayfasına yönlendir
@@ -718,9 +788,9 @@ function AppContent() {
                     ) : (
                       // Normal görünüm
                       <>
-                        <div className="message-content">
-                          {message.text}
-                        </div>
+                                                  <div className="message-content">
+                            {message.text}
+                          </div>
                         <div className="message-actions">
                           {message.sender === 'user' && (
                             <>
@@ -764,18 +834,18 @@ function AppContent() {
 
               <div className="input-container">
                 <div className="input-controls">
-                  <ModelSelector
-                    selectedModel={selectedModel}
-                    onModelChange={setSelectedModel}
-                    disabled={isLoading}
-                    compact={true}
-                  />
-                  <LanguageSelector
-                    selectedLanguage={language}
-                    onLanguageChange={setLanguage}
-                    disabled={isLoading}
-                    compact={true}
-                  />
+                                <ModelSelector
+                selectedModel={selectedModel}
+                onModelChange={handleModelChange}
+                disabled={isLoading}
+                compact={true}
+              />
+              <LanguageSelector
+                selectedLanguage={language}
+                onLanguageChange={handleLanguageChange}
+                disabled={isLoading}
+                compact={true}
+              />
                 </div>
                 <div className="input-row">
                   <input
