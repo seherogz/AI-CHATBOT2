@@ -176,7 +176,9 @@ app.get('/api/auth/profile', authenticateToken, async (req, res) => {
       user: {
         id: req.user.id,
         username: req.user.username,
-        email: req.user.email
+        email: req.user.email,
+        preferredModel: req.user.preferredModel || 'openai/gpt-3.5-turbo',
+        preferredLanguage: req.user.preferredLanguage || 'tr'
       }
     });
   } catch (error) {
@@ -205,6 +207,41 @@ app.post('/api/auth/logout', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Çıkış sırasında hata oluştu.'
+    });
+  }
+});
+
+// Kullanıcı tercihlerini güncelle
+app.post('/api/user/preferences', authenticateToken, async (req, res) => {
+  try {
+    const { model, language } = req.body;
+    
+    console.log('Updating user preferences:', { 
+      userId: req.user.id, 
+      username: req.user.username, 
+      model, 
+      language 
+    });
+    
+    // Kullanıcı tercihlerini güncelle
+    await User.update(
+      { 
+        preferredModel: model, 
+        preferredLanguage: language 
+      },
+      { where: { id: req.user.id } }
+    );
+    
+    res.status(200).json({
+      success: true,
+      message: 'Tercihler güncellendi.',
+      preferences: { model, language }
+    });
+  } catch (error) {
+    console.error('Update preferences error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Tercihler güncellenirken hata oluştu.'
     });
   }
 });
@@ -418,28 +455,107 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
       });
     }
 
-    // Kullanıcı mesajını kaydet
+    // Kullanıcı mesajını seçilen dile çevir
+    const translateText = async (text, targetLang) => {
+      if (targetLang === 'tr') return text; // Türkçe ise çevirmeye gerek yok
+      
+      try {
+        const translationResponse = await axios.post(
+          'https://openrouter.ai/api/v1/chat/completions',
+          {
+            model: 'openai/gpt-3.5-turbo',
+            messages: [
+              {
+                role: 'system',
+                content: `You are a translator. Translate the following text to ${targetLang === 'en' ? 'English' : targetLang === 'de' ? 'German' : targetLang === 'fr' ? 'French' : targetLang === 'es' ? 'Spanish' : targetLang === 'it' ? 'Italian' : targetLang === 'ru' ? 'Russian' : targetLang === 'ja' ? 'Japanese' : targetLang === 'ko' ? 'Korean' : targetLang === 'zh' ? 'Chinese' : 'English'}. Only provide the translation, nothing else.`
+              },
+              {
+                role: 'user',
+                content: text
+              }
+            ],
+            max_tokens: 300,
+            temperature: 0.3
+          },
+          { 
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              'HTTP-Referer': 'http://localhost:3000',
+              'X-Title': 'AI Chatbot'
+            } 
+          }
+        );
+        
+        if (translationResponse.data && translationResponse.data.choices && translationResponse.data.choices[0]) {
+          return translationResponse.data.choices[0].message.content.trim();
+        }
+      } catch (error) {
+        console.error('Translation error:', error);
+      }
+      return text; // Çeviri başarısız olursa orijinal metni döndür
+    };
+
+    const translateUserMessage = async (text, targetLang) => {
+      return await translateText(text, targetLang);
+    };
+
+    // Metnin hangi dilde olduğunu kontrol eden fonksiyon
+    const checkLanguage = (text, targetLang) => {
+      const languagePatterns = {
+        en: /[a-zA-Z]/,
+        de: /[äöüßÄÖÜ]/,
+        fr: /[àâäéèêëïîôùûüÿçÀÂÄÉÈÊËÏÎÔÙÛÜŸÇ]/,
+        es: /[ñáéíóúüÑÁÉÍÓÚÜ]/,
+        it: /[àèéìíîòóùÀÈÉÌÍÎÒÓÙ]/,
+        ru: /[а-яёА-ЯЁ]/,
+        ja: /[ぁ-んァ-ン一-龯]/,
+        ko: /[가-힣]/,
+        zh: /[一-龯]/
+      };
+      
+      const pattern = languagePatterns[targetLang];
+      if (!pattern) return false;
+      
+      // Almanca için özel kontrol
+      if (targetLang === 'de') {
+        // Almanca karakterler varsa veya tipik Almanca kelimeler varsa
+        const germanChars = text.match(/[äöüßÄÖÜ]/g) || [];
+        const germanWords = text.match(/\b(der|die|das|und|ist|sind|von|zu|in|an|auf|bei|mit|nach|vor|über|unter|zwischen|durch|für|gegen|ohne|um|seit|während|trotz|wegen|dank|statt|außer|innerhalb|außerhalb|oberhalb|unterhalb|neben|hinter|vor|über|unter|zwischen|durch|für|gegen|ohne|um|seit|während|trotz|wegen|dank|statt|außer|innerhalb|außerhalb|oberhalb|unterhalb|neben|hinter)\b/gi) || [];
+        
+        return germanChars.length > 0 || germanWords.length > 0;
+      }
+      
+      // Diğer diller için genel kontrol
+      const targetChars = text.match(pattern) || [];
+      const totalChars = text.replace(/[^a-zA-Zа-яёА-ЯЁぁ-んァ-ン一-龯가-힣]/g, '').length;
+      
+      return totalChars > 0 && (targetChars.length / totalChars) > 0.3;
+    };
+
+    // Kullanıcı mesajını kaydet (çevirme, kullanıcı seçtiği dilde yazabilir)
     const userMessage = await Message.create({
       text: message,
+      originalText: message, // Orijinal mesaj
       sender: 'user',
       chatId: chat.id
     });
 
-    console.log('User message created with ID:', userMessage.id);
+    console.log('User message created with ID:', userMessage.id, 'Message:', message);
 
     // Dil seçimine göre system message hazırla
     const getSystemMessage = (lang) => {
       const messages = {
-        tr: `Sen yardımsever bir AI asistanısın. Kullanıcılara kibar, açıklayıcı ve yararlı yanıtlar ver. Türkçe yanıt ver.`,
-        en: `You are a helpful AI assistant. Provide kind, explanatory and useful responses to users. Respond in English.`,
-        de: `Du bist ein hilfreicher KI-Assistent. Gib freundliche, erklärende und nützliche Antworten an Benutzer. Antworte auf Deutsch.`,
-        fr: `Tu es un assistant IA utile. Fournis des réponses gentilles, explicatives et utiles aux utilisateurs. Réponds en français.`,
-        es: `Eres un asistente de IA útil. Proporciona respuestas amables, explicativas y útiles a los usuarios. Responde en español.`,
-        it: `Sei un assistente IA utile. Fornisci risposte gentili, esplicative e utili agli utenti. Rispondi in italiano.`,
-        ru: `Ты полезный ИИ-ассистент. Давай добрые, объясняющие и полезные ответы пользователям. Отвечай на русском языке.`,
-        ja: `あなたは役立つAIアシスタントです。ユーザーに親切で、説明が分かりやすく、役立つ回答を提供してください。日本語で答えてください。`,
-        ko: `당신은 도움이 되는 AI 어시스턴트입니다. 사용자에게 친절하고 설명적이며 유용한 응답을 제공하세요. 한국어로 답변하세요.`,
-        zh: `你是一个有用的AI助手。为用户提供友好、解释性和有用的回答。用中文回答。`
+        tr: `Sen yardımsever bir AI asistanısın. Kullanıcılara kibar, açıklayıcı ve yararlı yanıtlar ver. SADECE Türkçe yanıt ver, başka dil kullanma.`,
+        en: `You are a helpful AI assistant. Provide kind, explanatory and useful responses to users. Respond ONLY in English, do not use any other language.`,
+        de: `Du bist ein hilfreicher KI-Assistent. WICHTIG: Du musst IMMER und AUSSCHLIESSLICH auf Deutsch antworten. Verwende KEINE andere Sprache. Wenn du auf Deutsch antwortest, ist das korrekt. Antworte jetzt auf Deutsch.`,
+        fr: `Tu es un assistant IA utile. TRÈS IMPORTANT: Tu dois TOUJOURS et EXCLUSIVEMENT répondre en français. N'utilise AUCUNE autre langue. Si tu réponds en français, c'est correct. Réponds maintenant en français.`,
+        es: `Eres un asistente de IA útil. MUY IMPORTANTE: Debes responder SIEMPRE y EXCLUSIVAMENTE en español. NO uses ningún otro idioma. Si respondes en español, es correcto. Responde ahora en español.`,
+        it: `Sei un assistente IA utile. MOLTO IMPORTANTE: Devi rispondere SEMPRE ed ESCLUSIVAMENTE in italiano. NON usare altre lingue. Se rispondi in italiano, è corretto. Rispondi ora in italiano.`,
+        ru: `Ты полезный ИИ-ассистент. ОЧЕНЬ ВАЖНО: Ты должен ВСЕГДА и ИСКЛЮЧИТЕЛЬНО отвечать на русском языке. НЕ используй другие языки. Если ты отвечаешь на русском, это правильно. Отвечай сейчас на русском языке.`,
+        ja: `あなたは役立つAIアシスタントです。非常に重要：あなたは常にそして排他的に日本語で答える必要があります。他の言語は使用しないでください。日本語で答えるなら、それは正しいです。今すぐ日本語で答えてください。`,
+        ko: `당신은 도움이 되는 AI 어시스턴트입니다. 매우 중요: 당신은 항상 그리고 독점적으로 한국어로 답변해야 합니다. 다른 언어를 사용하지 마세요. 한국어로 답변하면 올바릅니다. 지금 한국어로 답변하세요.`,
+        zh: `你是一个有用的AI助手。非常重要：你必须始终且专门用中文回答。不要使用其他语言。如果你用中文回答，这是正确的。现在用中文回答。`
       };
       return messages[lang] || messages['en'];
     };
@@ -448,6 +564,9 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
       role: 'system',
       content: getSystemMessage(language)
     };
+    
+    console.log('Selected language:', language);
+    console.log('System message:', systemMessage.content);
 
     const apiMessages = [systemMessage];
     
@@ -490,7 +609,7 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
           {
             model: model,
             messages: openRouterMessages,
-            max_tokens: 500,
+            max_tokens: 300,
             temperature: 0.7
           },
           { 
@@ -503,10 +622,29 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
           }
         );
         
-        if (response.data && response.data.choices && response.data.choices[0]) {
-          aiResponse = response.data.choices[0].message.content;
-          console.log('OpenRouter Response received:', aiResponse);
-        }
+                 if (response.data && response.data.choices && response.data.choices[0]) {
+           aiResponse = response.data.choices[0].message.content;
+           console.log('OpenRouter Response received:', aiResponse);
+           
+           // AI cevabını sadece gerektiğinde çevir (AI zaten doğru dilde yanıt vermişse çevirme)
+           if (language !== 'tr') {
+             // AI'nin cevabının hangi dilde olduğunu kontrol et
+             const isAlreadyInTargetLanguage = checkLanguage(aiResponse, language);
+             
+             if (!isAlreadyInTargetLanguage) {
+               try {
+                 const translatedResponse = await translateText(aiResponse, language);
+                 aiResponse = translatedResponse;
+                 console.log('AI Response translated to', language, ':', aiResponse);
+               } catch (error) {
+                 console.error('AI response translation error:', error);
+                 // Çeviri başarısız olursa orijinal cevabı kullan
+               }
+             } else {
+               console.log('AI Response already in', language, 'language, no translation needed');
+             }
+           }
+         }
       } catch (apiError) {
         console.error('OpenRouter API Hatası:', apiError.response ? apiError.response.data : apiError.message);
         aiResponse = 'AI servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.';
@@ -530,13 +668,13 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
 
     console.log('Message exchange completed for chat:', id);
     
-    res.status(200).json({ 
-      success: true, 
-      message: 'Mesaj gönderildi.',
-      aiResponse: aiResponse,
-      userMessageId: userMessage.id,
-      aiMessageId: aiMessage.id
-    });
+          res.status(200).json({
+        success: true,
+        message: 'Mesaj gönderildi.',
+        aiResponse: aiResponse,
+        userMessageId: userMessage.id,
+        aiMessageId: aiMessage.id
+      });
 
   } catch (error) {
     console.error('Send message error:', error);
