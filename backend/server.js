@@ -392,9 +392,9 @@ app.get('/api/chats/:id/messages', optionalAuth, async (req, res) => {
 app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { message } = req.body;
+    const { message, model = 'openai/gpt-3.5-turbo', language = 'tr' } = req.body;
     
-    console.log('Sending message to chat:', id, 'Message:', message);
+    console.log('Sending message to chat:', id, 'Message:', message, 'Model:', model, 'Language:', language);
     
     // Sohbet kontrolü
     let whereClause = { id };
@@ -427,10 +427,26 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
 
     console.log('User message created with ID:', userMessage.id);
 
-    // OpenRouter API için mesajları hazırla
+    // Dil seçimine göre system message hazırla
+    const getSystemMessage = (lang) => {
+      const messages = {
+        tr: `Sen yardımsever bir AI asistanısın. Kullanıcılara kibar, açıklayıcı ve yararlı yanıtlar ver. Türkçe yanıt ver.`,
+        en: `You are a helpful AI assistant. Provide kind, explanatory and useful responses to users. Respond in English.`,
+        de: `Du bist ein hilfreicher KI-Assistent. Gib freundliche, erklärende und nützliche Antworten an Benutzer. Antworte auf Deutsch.`,
+        fr: `Tu es un assistant IA utile. Fournis des réponses gentilles, explicatives et utiles aux utilisateurs. Réponds en français.`,
+        es: `Eres un asistente de IA útil. Proporciona respuestas amables, explicativas y útiles a los usuarios. Responde en español.`,
+        it: `Sei un assistente IA utile. Fornisci risposte gentili, esplicative e utili agli utenti. Rispondi in italiano.`,
+        ru: `Ты полезный ИИ-ассистент. Давай добрые, объясняющие и полезные ответы пользователям. Отвечай на русском языке.`,
+        ja: `あなたは役立つAIアシスタントです。ユーザーに親切で、説明が分かりやすく、役立つ回答を提供してください。日本語で答えてください。`,
+        ko: `당신은 도움이 되는 AI 어시스턴트입니다. 사용자에게 친절하고 설명적이며 유용한 응답을 제공하세요. 한국어로 답변하세요.`,
+        zh: `你是一个有用的AI助手。为用户提供友好、解释性和有用的回答。用中文回答。`
+      };
+      return messages[lang] || messages['en'];
+    };
+
     const systemMessage = {
       role: 'system',
-      content: `Sen yardımsever bir AI asistanısın. Kullanıcılara kibar, açıklayıcı ve yararlı yanıtlar ver. Türkçe ve İngilizce dillerini destekliyorsun.`
+      content: getSystemMessage(language)
     };
 
     const apiMessages = [systemMessage];
@@ -464,13 +480,15 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
 
         console.log('OpenRouter API request:', {
           url: 'https://openrouter.ai/api/v1/chat/completions',
+          model: model,
+          language: language,
           messages: openRouterMessages
         });
 
         const response = await axios.post(
           'https://openrouter.ai/api/v1/chat/completions',
           {
-            model: 'openai/gpt-3.5-turbo',
+            model: model,
             messages: openRouterMessages,
             max_tokens: 500,
             temperature: 0.7

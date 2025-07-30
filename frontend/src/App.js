@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavig
 import './App.css';
 import Login from './components/Login';
 import Register from './components/Register';
+import ModelSelector from './components/ModelSelector';
+import LanguageSelector from './components/LanguageSelector';
 import api from './services/api';
 
 function AppContent() {
@@ -15,6 +17,7 @@ function AppContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [language, setLanguage] = useState('tr');
+  const [selectedModel, setSelectedModel] = useState('openai/gpt-3.5-turbo');
   const [darkMode, setDarkMode] = useState(false);
   const [isLoadingChats, setIsLoadingChats] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -236,8 +239,8 @@ function AppContent() {
     setError(null);
 
     try {
-      console.log('Sending message:', { chatId: currentChatId, message: inputMessage });
-      const response = await api.sendMessage(currentChatId, inputMessage);
+      console.log('Sending message:', { chatId: currentChatId, message: inputMessage, model: selectedModel, language: language });
+      const response = await api.sendMessage(currentChatId, inputMessage, selectedModel, language);
       console.log('Send message response:', response);
       
       if (response.success) {
@@ -454,7 +457,9 @@ function AppContent() {
       startChat: 'Create a new chat to start conversation.',
       error: 'Error',
       login: 'Login',
-      register: 'Register'
+      register: 'Register',
+      aiModel: 'AI Model',
+      selectLanguage: 'Select Language'
     },
     tr: {
       newChat: 'Yeni Sohbet',
@@ -468,7 +473,57 @@ function AppContent() {
       startChat: 'Sohbete başlamak için yeni bir chat oluşturun.',
       error: 'Hata',
       login: 'Giriş Yap',
-      register: 'Kayıt Ol'
+      register: 'Kayıt Ol',
+      aiModel: 'AI Modeli',
+      selectLanguage: 'Dil Seçin'
+    },
+    de: {
+      newChat: 'Neuer Chat',
+      typeMessage: 'Nachricht eingeben...',
+      send: 'Senden',
+      logout: 'Abmelden',
+      darkMode: 'Dunkler Modus',
+      language: 'Sprache',
+      delete: 'Löschen',
+      welcome: 'Willkommen beim AI Chatbot!',
+      startChat: 'Erstellen Sie einen neuen Chat, um zu beginnen.',
+      error: 'Fehler',
+      login: 'Anmelden',
+      register: 'Registrieren',
+      aiModel: 'KI-Modell',
+      selectLanguage: 'Sprache auswählen'
+    },
+    fr: {
+      newChat: 'Nouveau Chat',
+      typeMessage: 'Tapez votre message...',
+      send: 'Envoyer',
+      logout: 'Déconnexion',
+      darkMode: 'Mode Sombre',
+      language: 'Langue',
+      delete: 'Supprimer',
+      welcome: 'Bienvenue sur AI Chatbot!',
+      startChat: 'Créez un nouveau chat pour commencer.',
+      error: 'Erreur',
+      login: 'Connexion',
+      register: 'S\'inscrire',
+      aiModel: 'Modèle IA',
+      selectLanguage: 'Sélectionner la langue'
+    },
+    es: {
+      newChat: 'Nuevo Chat',
+      typeMessage: 'Escribe tu mensaje...',
+      send: 'Enviar',
+      logout: 'Cerrar Sesión',
+      darkMode: 'Modo Oscuro',
+      language: 'Idioma',
+      delete: 'Eliminar',
+      welcome: '¡Bienvenido a AI Chatbot!',
+      startChat: 'Crea un nuevo chat para comenzar.',
+      error: 'Error',
+      login: 'Iniciar Sesión',
+      register: 'Registrarse',
+      aiModel: 'Modelo IA',
+      selectLanguage: 'Seleccionar Idioma'
     }
   };
 
@@ -545,15 +600,6 @@ function AppContent() {
                 />
                 {t.darkMode}
               </label>
-              
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                className="language-select"
-              >
-                <option value="en">English</option>
-                <option value="tr">Türkçe</option>
-              </select>
             </div>
           </div>
 
@@ -717,22 +763,38 @@ function AppContent() {
               </div>
 
               <div className="input-container">
-                <input
-                  type="text"
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                  placeholder={t.typeMessage}
-                  disabled={isLoading}
-                  className="message-input"
-                />
-                <button
-                  onClick={sendMessage}
-                  disabled={isLoading || !inputMessage.trim()}
-                  className="send-btn"
-                >
-                  {t.send}
-                </button>
+                <div className="input-controls">
+                  <ModelSelector
+                    selectedModel={selectedModel}
+                    onModelChange={setSelectedModel}
+                    disabled={isLoading}
+                    compact={true}
+                  />
+                  <LanguageSelector
+                    selectedLanguage={language}
+                    onLanguageChange={setLanguage}
+                    disabled={isLoading}
+                    compact={true}
+                  />
+                </div>
+                <div className="input-row">
+                  <input
+                    type="text"
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    placeholder={t.typeMessage}
+                    disabled={isLoading}
+                    className="message-input"
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={isLoading || !inputMessage.trim()}
+                    className="send-btn"
+                  >
+                    {t.send}
+                  </button>
+                </div>
               </div>
             </>
           ) : (

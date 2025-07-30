@@ -124,19 +124,43 @@ body {
   accent-color: var(--color4);
 }
 
-.language-select {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--white);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  cursor: pointer;
+/* Input container'daki model ve language selector'lar için stiller */
+.input-controls .model-selector,
+.input-controls .language-selector {
+  margin-bottom: 0;
 }
 
-.language-select option {
-  background: var(--color2);
-  color: var(--white);
+.input-controls .model-selector-label,
+.input-controls .language-selector-label {
+  color: var(--color1);
+  font-size: 0.8rem;
+  margin-bottom: 3px;
+}
+
+.input-controls .model-select,
+.input-controls .language-select {
+  background: var(--light-gray);
+  color: var(--color1);
+  border: 1px solid var(--border-color);
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  min-width: 120px;
+}
+
+.input-controls .model-select:focus,
+.input-controls .language-select:focus {
+  outline: none;
+  border-color: var(--color3);
+  box-shadow: 0 0 0 2px rgba(189, 88, 103, 0.25);
+}
+
+.input-controls .model-select option,
+.input-controls .language-select option {
+  background: var(--white);
+  color: var(--color1);
+  padding: 8px;
 }
 
 .chat-list {
@@ -648,6 +672,19 @@ body {
   background: var(--white);
   border-top: 1px solid var(--border-color);
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.input-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.input-row {
+  display: flex;
   gap: 15px;
   align-items: center;
 }
@@ -833,6 +870,30 @@ body {
   border-color: #444;
 }
 
+.app.dark-mode .input-controls .model-selector-label,
+.app.dark-mode .input-controls .language-selector-label {
+  color: #e0e0e0;
+}
+
+.app.dark-mode .input-controls .model-select,
+.app.dark-mode .input-controls .language-select {
+  background: #3a3a3a;
+  color: #e0e0e0;
+  border-color: #555;
+}
+
+.app.dark-mode .input-controls .model-select:focus,
+.app.dark-mode .input-controls .language-select:focus {
+  border-color: #4a9eff;
+  box-shadow: 0 0 0 2px rgba(74, 158, 255, 0.25);
+}
+
+.app.dark-mode .input-controls .model-select option,
+.app.dark-mode .input-controls .language-select option {
+  background: #3a3a3a;
+  color: #e0e0e0;
+}
+
 .app.dark-mode .message-input {
   background: #3a3a3a;
   color: var(--white);
@@ -867,6 +928,16 @@ body {
   .input-container {
     padding: 15px;
     gap: 10px;
+  }
+  
+  .input-controls {
+    gap: 8px;
+  }
+  
+  .input-controls .model-select,
+  .input-controls .language-select {
+    min-width: 100px;
+    font-size: 0.7rem;
   }
   
   .message-input {
