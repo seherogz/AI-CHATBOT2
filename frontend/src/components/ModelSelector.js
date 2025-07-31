@@ -4,40 +4,34 @@ import './ModelSelector.css';
 const ModelSelector = ({ selectedModel, onModelChange, disabled = false, compact = false }) => {
   const models = [
     {
-      id: 'openai/gpt-3.5-turbo',
+      id: 'gpt-3.5-turbo',
       name: 'GPT-3.5 Turbo',
       description: 'Hızlı ve ekonomik',
       provider: 'OpenAI'
     },
     {
-      id: 'openai/gpt-4',
+      id: 'gpt-4',
       name: 'GPT-4',
       description: 'En gelişmiş model',
       provider: 'OpenAI'
     },
     {
-      id: 'anthropic/claude-3-haiku',
-      name: 'Claude 3 Haiku',
-      description: 'Hızlı ve akıllı',
-      provider: 'Anthropic'
+      id: 'gpt-4-turbo',
+      name: 'GPT-4 Turbo',
+      description: 'En güncel GPT-4',
+      provider: 'OpenAI'
     },
     {
-      id: 'anthropic/claude-3-sonnet',
-      name: 'Claude 3 Sonnet',
-      description: 'Dengeli performans',
-      provider: 'Anthropic'
+      id: 'gpt-4o',
+      name: 'GPT-4o',
+      description: 'En yeni OpenAI modeli',
+      provider: 'OpenAI'
     },
     {
-      id: 'google/gemini-pro',
-      name: 'Gemini Pro',
-      description: 'Google\'ın en iyi modeli',
-      provider: 'Google'
-    },
-    {
-      id: 'meta-llama/llama-3.1-8b-instruct',
-      name: 'Llama 3.1 8B',
-      description: 'Açık kaynak model',
-      provider: 'Meta'
+      id: 'gpt-4o-mini',
+      name: 'GPT-4o Mini',
+      description: 'Hızlı ve ekonomik GPT-4o',
+      provider: 'OpenAI'
     }
   ];
 

@@ -5,6 +5,7 @@ import Login from './components/Login';
 import Register from './components/Register';
 import ModelSelector from './components/ModelSelector';
 import LanguageSelector from './components/LanguageSelector';
+import FileUpload from './components/FileUpload';
 import api from './services/api';
 
 function AppContent() {
@@ -19,6 +20,8 @@ function AppContent() {
   const [language, setLanguage] = useState('tr');
   const [selectedModel, setSelectedModel] = useState('openai/gpt-3.5-turbo');
   const [darkMode, setDarkMode] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [showOptions, setShowOptions] = useState(false);
   
   // Seçim değişikliklerini backend'e bildiren fonksiyonlar
   const handleModelChange = async (newModel) => {
@@ -39,6 +42,14 @@ function AppContent() {
     } catch (error) {
       console.error('Failed to update language preference:', error);
     }
+  };
+
+  const handleFileSelect = (file) => {
+    setSelectedFile(file);
+  };
+
+  const toggleOptions = () => {
+    setShowOptions(!showOptions);
   };
   const [isLoadingChats, setIsLoadingChats] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -265,28 +276,44 @@ function AppContent() {
       id: `temp_${Date.now()}`,
       text: inputMessage,
       sender: 'user',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      file: selectedFile
     };
 
     setMessages(prev => [...prev, tempUserMessage]);
     setInputMessage('');
+    setSelectedFile(null);
     setIsLoading(true);
     setError(null);
 
     try {
-      console.log('Sending message:', { chatId: currentChatId, message: inputMessage, model: selectedModel, language: language });
-      const response = await api.sendMessage(currentChatId, inputMessage, selectedModel, language);
+      console.log('Sending message:', { 
+        chatId: currentChatId, 
+        message: inputMessage, 
+        model: selectedModel, 
+        language: language,
+        file: selectedFile?.name 
+      });
+      
+      let response;
+      if (selectedFile) {
+        response = await api.sendMessageWithFile(currentChatId, inputMessage, selectedFile, selectedModel, language);
+      } else {
+        response = await api.sendMessage(currentChatId, inputMessage, selectedModel, language);
+      }
+      
       console.log('Send message response:', response);
       
       if (response.success) {
         // Backend'den dönen gerçek mesaj ID'lerini kullan
-                  const realUserMessage = {
-            id: response.userMessageId || tempUserMessage.id,
-            text: inputMessage, // Kullanıcının yazdığı mesaj
-            originalText: inputMessage, // Orijinal mesaj
-            sender: 'user',
-            timestamp: new Date().toISOString()
-          };
+        const realUserMessage = {
+          id: response.userMessageId || tempUserMessage.id,
+          text: inputMessage,
+          originalText: inputMessage,
+          sender: 'user',
+          timestamp: new Date().toISOString(),
+          file: selectedFile
+        };
 
         const aiMessage = {
           id: response.aiMessageId || `ai_${Date.now()}`,
@@ -788,9 +815,28 @@ function AppContent() {
                     ) : (
                       // Normal görünüm
                       <>
-                                                  <div className="message-content">
-                            {message.text}
-                          </div>
+                        <div className="message-content">
+                          {message.text}
+                          {message.file && (
+                            <div className="message-file">
+                              <div className="file-preview">
+                                {message.file.type.startsWith('image/') ? (
+                                  <img 
+                                    src={URL.createObjectURL(message.file)} 
+                                    alt="Uploaded file" 
+                                    className="file-image"
+                                  />
+                                ) : (
+                                  <div className="file-info">
+                                    <span className="file-icon">📎</span>
+                                    <span className="file-name">{message.file.name}</span>
+                                    <span className="file-size">({(message.file.size / 1024).toFixed(1)} KB)</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         <div className="message-actions">
                           {message.sender === 'user' && (
                             <>
@@ -833,20 +879,6 @@ function AppContent() {
               </div>
 
               <div className="input-container">
-                <div className="input-controls">
-                                <ModelSelector
-                selectedModel={selectedModel}
-                onModelChange={handleModelChange}
-                disabled={isLoading}
-                compact={true}
-              />
-              <LanguageSelector
-                selectedLanguage={language}
-                onLanguageChange={handleLanguageChange}
-                disabled={isLoading}
-                compact={true}
-              />
-                </div>
                 <div className="input-row">
                   <input
                     type="text"
@@ -858,6 +890,14 @@ function AppContent() {
                     className="message-input"
                   />
                   <button
+                    type="button"
+                    onClick={toggleOptions}
+                    className="options-btn"
+                    title="Diğer seçenekler"
+                  >
+                    ⋯
+                  </button>
+                  <button
                     onClick={sendMessage}
                     disabled={isLoading || !inputMessage.trim()}
                     className="send-btn"
@@ -865,6 +905,45 @@ function AppContent() {
                     {t.send}
                   </button>
                 </div>
+                
+                {showOptions && (
+                  <div className="options-panel">
+                    <div className="options-row">
+                      <ModelSelector
+                        selectedModel={selectedModel}
+                        onModelChange={handleModelChange}
+                        disabled={isLoading}
+                        compact={true}
+                      />
+                      <LanguageSelector
+                        selectedLanguage={language}
+                        onLanguageChange={handleLanguageChange}
+                        disabled={isLoading}
+                        compact={true}
+                      />
+                      <FileUpload
+                        onFileSelect={handleFileSelect}
+                        disabled={isLoading}
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                {selectedFile && (
+                  <div className="selected-file-display">
+                    <div className="file-info">
+                      <span className="file-name">{selectedFile.name}</span>
+                      <span className="file-size">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+                    </div>
+                    <button 
+                      type="button" 
+                      className="remove-file-btn"
+                      onClick={() => setSelectedFile(null)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
             </>
           ) : (
