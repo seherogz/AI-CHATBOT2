@@ -3,6 +3,10 @@ const cors = require('cors');
 require('dotenv').config();
 const axios = require('axios');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { createReadStream } = require('fs');
 
 // Database ve middleware import
 const { syncDatabase, User, Chat, Message } = require('./models');
@@ -20,6 +24,38 @@ app.options('*', cors());
 
 // Body parser middleware
 app.use(express.json());
+
+// Dosya yükleme konfigürasyonu
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir);
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    // Sadece resim, metin ve PDF dosyalarına izin ver
+    if (file.mimetype.startsWith('image/') || 
+        file.mimetype.startsWith('text/') || 
+        file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Sadece resim, metin ve PDF dosyaları desteklenir.'), false);
+    }
+  }
+});
 
 // --- LOGLAMA MIDDLEWARE ---
 app.use((req, res, next) => {
@@ -425,11 +461,12 @@ app.get('/api/chats/:id/messages', optionalAuth, async (req, res) => {
   }
 });
 
-// Mesaj gönder
-app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
+// Mesaj gönder (dosya desteği ile)
+app.post('/api/chats/:id/messages', optionalAuth, upload.single('file'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { message, model = 'openai/gpt-3.5-turbo', language = 'tr' } = req.body;
+    const { message, model = 'gpt-3.5-turbo', language = 'tr' } = req.body;
+    const uploadedFile = req.file;
     
     console.log('Sending message to chat:', id, 'Message:', message, 'Model:', model, 'Language:', language);
     
@@ -461,9 +498,9 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
       
       try {
         const translationResponse = await axios.post(
-          'https://openrouter.ai/api/v1/chat/completions',
+          'https://api.openai.com/v1/chat/completions',
           {
-            model: 'openai/gpt-3.5-turbo',
+            model: 'gpt-3.5-turbo',
             messages: [
               {
                 role: 'system',
@@ -480,9 +517,7 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
           { 
             headers: { 
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              'HTTP-Referer': 'http://localhost:3000',
-              'X-Title': 'AI Chatbot'
+              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
             } 
           }
         );
@@ -533,12 +568,15 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
       return totalChars > 0 && (targetChars.length / totalChars) > 0.3;
     };
 
-    // Kullanıcı mesajını kaydet (çevirme, kullanıcı seçtiği dilde yazabilir)
+    // Kullanıcı mesajını kaydet (dosya desteği ile)
     const userMessage = await Message.create({
       text: message,
       originalText: message, // Orijinal mesaj
       sender: 'user',
-      chatId: chat.id
+      chatId: chat.id,
+      filePath: uploadedFile ? uploadedFile.path : null,
+      fileName: uploadedFile ? uploadedFile.originalname : null,
+      fileType: uploadedFile ? uploadedFile.mimetype : null
     });
 
     console.log('User message created with ID:', userMessage.id, 'Message:', message);
@@ -546,16 +584,16 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
     // Dil seçimine göre system message hazırla
     const getSystemMessage = (lang) => {
       const messages = {
-        tr: `Sen yardımsever bir AI asistanısın. Kullanıcılara kibar, açıklayıcı ve yararlı yanıtlar ver. SADECE Türkçe yanıt ver, başka dil kullanma.`,
-        en: `You are a helpful AI assistant. Provide kind, explanatory and useful responses to users. Respond ONLY in English, do not use any other language.`,
-        de: `Du bist ein hilfreicher KI-Assistent. WICHTIG: Du musst IMMER und AUSSCHLIESSLICH auf Deutsch antworten. Verwende KEINE andere Sprache. Wenn du auf Deutsch antwortest, ist das korrekt. Antworte jetzt auf Deutsch.`,
-        fr: `Tu es un assistant IA utile. TRÈS IMPORTANT: Tu dois TOUJOURS et EXCLUSIVEMENT répondre en français. N'utilise AUCUNE autre langue. Si tu réponds en français, c'est correct. Réponds maintenant en français.`,
-        es: `Eres un asistente de IA útil. MUY IMPORTANTE: Debes responder SIEMPRE y EXCLUSIVAMENTE en español. NO uses ningún otro idioma. Si respondes en español, es correcto. Responde ahora en español.`,
-        it: `Sei un assistente IA utile. MOLTO IMPORTANTE: Devi rispondere SEMPRE ed ESCLUSIVAMENTE in italiano. NON usare altre lingue. Se rispondi in italiano, è corretto. Rispondi ora in italiano.`,
-        ru: `Ты полезный ИИ-ассистент. ОЧЕНЬ ВАЖНО: Ты должен ВСЕГДА и ИСКЛЮЧИТЕЛЬНО отвечать на русском языке. НЕ используй другие языки. Если ты отвечаешь на русском, это правильно. Отвечай сейчас на русском языке.`,
-        ja: `あなたは役立つAIアシスタントです。非常に重要：あなたは常にそして排他的に日本語で答える必要があります。他の言語は使用しないでください。日本語で答えるなら、それは正しいです。今すぐ日本語で答えてください。`,
-        ko: `당신은 도움이 되는 AI 어시스턴트입니다. 매우 중요: 당신은 항상 그리고 독점적으로 한국어로 답변해야 합니다. 다른 언어를 사용하지 마세요. 한국어로 답변하면 올바릅니다. 지금 한국어로 답변하세요.`,
-        zh: `你是一个有用的AI助手。非常重要：你必须始终且专门用中文回答。不要使用其他语言。如果你用中文回答，这是正确的。现在用中文回答。`
+        tr: `Sen yardımsever bir AI asistanısın. Kullanıcılara kibar, açıklayıcı ve yararlı yanıtlar ver. KESINLIKLE SADECE Türkçe yanıt ver, başka dil kullanma. Eğer başka dilde yanıt verirsen, bu yanlış olur. SADECE TÜRKÇE.`,
+        en: `You are a helpful AI assistant. Provide kind, explanatory and useful responses to users. CRITICAL: Respond ONLY in English, NEVER use any other language. If you respond in any other language, it is WRONG. ENGLISH ONLY.`,
+        de: `Du bist ein hilfreicher KI-Assistent. KRITISCH: Du musst AUSSCHLIESSLICH auf Deutsch antworten. VERWENDE KEINE ANDERE SPRACHE. Wenn du in einer anderen Sprache antwortest, ist das FALSCH. NUR DEUTSCH.`,
+        fr: `Tu es un assistant IA utile. CRITIQUE: Tu dois RÉPONDRE UNIQUEMENT en français. N'UTILISE AUCUNE AUTRE LANGUE. Si tu réponds dans une autre langue, c'est FAUX. FRANÇAIS SEULEMENT.`,
+        es: `Eres un asistente de IA útil. CRÍTICO: Debes responder ÚNICAMENTE en español. NO USES NINGÚN OTRO IDIOMA. Si respondes en otro idioma, es INCORRECTO. SOLO ESPAÑOL.`,
+        it: `Sei un assistente IA utile. CRITICO: Devi rispondere ESCLUSIVAMENTE in italiano. NON USARE ALTRE LINGUE. Se rispondi in un'altra lingua, è SBAGLIATO. SOLO ITALIANO.`,
+        ru: `Ты полезный ИИ-ассистент. КРИТИЧНО: Ты должен отвечать ТОЛЬКО на русском языке. НЕ ИСПОЛЬЗУЙ ДРУГИЕ ЯЗЫКИ. Если ты отвечаешь на другом языке, это НЕПРАВИЛЬНО. ТОЛЬКО РУССКИЙ.`,
+        ja: `あなたは役立つAIアシスタントです。重要：あなたは日本語でのみ答える必要があります。他の言語は使用しないでください。他の言語で答えると間違っています。日本語のみ。`,
+        ko: `당신은 도움이 되는 AI 어시스턴트입니다. 중요: 당신은 한국어로만 답변해야 합니다. 다른 언어를 사용하지 마세요. 다른 언어로 답변하면 틀립니다. 한국어만.`,
+        zh: `你是一个有用的AI助手。重要：你必须只用中文回答。不要使用其他语言。如果你用其他语言回答，那是错误的。只用中文。`
       };
       return messages[lang] || messages['en'];
     };
@@ -586,71 +624,53 @@ app.post('/api/chats/:id/messages', optionalAuth, async (req, res) => {
 
     let aiResponse = 'Üzgünüm, şu anda AI servisi ile bağlantı kuramıyorum. Lütfen daha sonra tekrar deneyin.';
 
-    // OpenRouter API çağrısı
-    if (process.env.OPENROUTER_API_KEY) {
+    // OpenAI API çağrısı
+    if (process.env.OPENAI_API_KEY) {
       try {
-        console.log('Calling OpenRouter API...');
+        console.log('Calling OpenAI API...');
         
-        // OpenRouter API için mesaj formatını hazırla
-        const openRouterMessages = apiMessages.map(msg => ({
+        // OpenAI API için mesaj formatını hazırla
+        const openaiMessages = apiMessages.map(msg => ({
           role: msg.role,
           content: msg.content
         }));
 
-        console.log('OpenRouter API request:', {
-          url: 'https://openrouter.ai/api/v1/chat/completions',
+        console.log('OpenAI API request:', {
+          url: 'https://api.openai.com/v1/chat/completions',
           model: model,
           language: language,
-          messages: openRouterMessages
+          messages: openaiMessages
         });
 
         const response = await axios.post(
-          'https://openrouter.ai/api/v1/chat/completions',
+          'https://api.openai.com/v1/chat/completions',
           {
             model: model,
-            messages: openRouterMessages,
+            messages: openaiMessages,
             max_tokens: 300,
             temperature: 0.7
           },
           { 
             headers: { 
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              'HTTP-Referer': 'http://localhost:3000',
-              'X-Title': 'AI Chatbot'
+              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
             } 
           }
         );
         
-                 if (response.data && response.data.choices && response.data.choices[0]) {
-           aiResponse = response.data.choices[0].message.content;
-           console.log('OpenRouter Response received:', aiResponse);
-           
-           // AI cevabını sadece gerektiğinde çevir (AI zaten doğru dilde yanıt vermişse çevirme)
-           if (language !== 'tr') {
-             // AI'nin cevabının hangi dilde olduğunu kontrol et
-             const isAlreadyInTargetLanguage = checkLanguage(aiResponse, language);
-             
-             if (!isAlreadyInTargetLanguage) {
-               try {
-                 const translatedResponse = await translateText(aiResponse, language);
-                 aiResponse = translatedResponse;
-                 console.log('AI Response translated to', language, ':', aiResponse);
-               } catch (error) {
-                 console.error('AI response translation error:', error);
-                 // Çeviri başarısız olursa orijinal cevabı kullan
-               }
-             } else {
-               console.log('AI Response already in', language, 'language, no translation needed');
-             }
-           }
-         }
+        if (response.data && response.data.choices && response.data.choices[0]) {
+          aiResponse = response.data.choices[0].message.content;
+          console.log('OpenAI Response received:', aiResponse);
+          
+          // AI zaten seçilen dilde cevap vermeli, çeviri gerekmez
+          console.log('AI Response in', language, 'language:', aiResponse);
+        }
       } catch (apiError) {
-        console.error('OpenRouter API Hatası:', apiError.response ? apiError.response.data : apiError.message);
+        console.error('OpenAI API Hatası:', apiError.response ? apiError.response.data : apiError.message);
         aiResponse = 'AI servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.';
       }
     } else {
-      console.warn('OPENROUTER_API_KEY not found in environment variables');
+      console.warn('OPENAI_API_KEY not found in environment variables');
       aiResponse = 'AI servisi yapılandırılmamış. Lütfen API anahtarını ayarlayın.';
     }
 

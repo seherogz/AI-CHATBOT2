@@ -235,6 +235,29 @@ class ApiService {
     }
   }
 
+  async sendMessageWithFile(chatId, message, file, model = 'gpt-3.5-turbo', language = 'tr') {
+    try {
+      const formData = new FormData();
+      formData.append('message', message);
+      formData.append('model', model);
+      formData.append('language', language);
+      
+      if (file) {
+        formData.append('file', file);
+      }
+
+      const response = await apiClient.post(`/api/chats/${chatId}/messages`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Send message with file error:', error);
+      return error;
+    }
+  }
+
   // Token yönetimi metodları
   isAuthenticated() {
     return !!getToken();

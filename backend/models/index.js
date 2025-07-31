@@ -118,6 +118,18 @@ const Message = sequelize.define('Message', {
       model: 'Chats',
       key: 'id'
     }
+  },
+  filePath: {
+    type: Sequelize.STRING,
+    allowNull: true
+  },
+  fileName: {
+    type: Sequelize.STRING,
+    allowNull: true
+  },
+  fileType: {
+    type: Sequelize.STRING,
+    allowNull: true
   }
 });
 
