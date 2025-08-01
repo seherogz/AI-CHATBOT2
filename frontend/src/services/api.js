@@ -135,94 +135,109 @@ class ApiService {
     }
   }
 
-  // Chat endpoints
-  async getChats() {
+  // AI Chat - doğrudan OpenAI API'ye çağrı (frontend'den)
+  async sendAIMessage(message, conversationHistory = [], model = 'gpt-3.5-turbo', language = 'tr') {
     try {
-      const response = await apiClient.get('/api/chats');
-      return response.data;
-    } catch (error) {
-      console.error('Get chats error:', error);
-      return error;
-    }
-  }
+      // OpenAI API key'i frontend'de environment variable olarak alınmalı
+      const apiKey = process.env.REACT_APP_OPENAI_API_KEY;
+      
+      if (!apiKey) {
+        return {
+          success: false,
+          message: 'OpenAI API anahtarı bulunamadı. REACT_APP_OPENAI_API_KEY environment variable\'ını ayarlayın.'
+        };
+      }
 
-  async createChat(title) {
-    try {
-      console.log('Creating chat with title:', title);
-      const response = await apiClient.post('/api/chats', { title });
-      console.log('Create chat response:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Create chat error:', error);
-      return error;
-    }
-  }
+      // Dil seçimine göre system message hazırla
+      const getSystemMessage = (lang) => {
+        const messages = {
+          tr: `Sen yardımsever bir AI asistanısın. Kullanıcılara kibar, açıklayıcı ve yararlı yanıtlar ver. KESINLIKLE SADECE Türkçe yanıt ver, başka dil kullanma. Eğer başka dilde yanıt verirsen, bu yanlış olur. SADECE TÜRKÇE.`,
+          en: `You are a helpful AI assistant. Provide kind, explanatory and useful responses to users. CRITICAL: Respond ONLY in English, NEVER use any other language. If you respond in any other language, it is WRONG. ENGLISH ONLY.`,
+          de: `Du bist ein hilfreicher KI-Assistent. KRITISCH: Du musst AUSSCHLIESSLICH auf Deutsch antworten. VERWENDE KEINE ANDERE SPRACHE. Wenn du in einer anderen Sprache antwortest, ist das FALSCH. NUR DEUTSCH.`,
+          fr: `Tu es un assistant IA utile. CRITIQUE: Tu dois RÉPONDRE UNIQUEMENT en français. N'UTILISE AUCUNE AUTRE LANGUE. Si tu réponds dans une autre langue, c'est FAUX. FRANÇAIS SEULEMENT.`,
+          es: `Eres un asistente de IA útil. CRÍTICO: Debes responder ÚNICAMENTE en español. NO USES NINGÚN OTRO IDIOMA. Si respondes en otro idioma, es INCORRECTO. SOLO ESPAÑOL.`,
+          it: `Sei un assistente IA utile. CRITICO: Devi rispondere ESCLUSIVAMENTE in italiano. NON USARE ALTRE LINGUE. Se rispondi in un'altra lingua, è SBAGLIATO. SOLO ITALIANO.`,
+          ru: `Ты полезный ИИ-ассистент. КРИТИЧНО: Ты должен отвечать ТОЛЬКО на русском языке. НЕ ИСПОЛЬЗУЙ ДРУГИЕ ЯЗЫКИ. Если ты отвечаешь на другом языке, это НЕПРАВИЛЬНО. ТОЛЬКО РУССКИЙ.`,
+          ja: `あなたは役立つAIアシスタントです。重要：あなたは日本語でのみ答える必要があります。他の言語は使用しないでください。他の言語で答えると間違っています。日本語のみ。`,
+          ko: `당신은 도움이 되는 AI 어시스턴트입니다. 중요: 당신은 한국어로만 답변해야 합니다. 다른 언어를 사용하지 마세요. 다른 언어로 답변하면 틀립니다. 한국어만.`,
+          zh: `你是一个有用的AI助手。重要：你必须只用中文回答。不要使用其他语言。如果你用其他语言回答，那是错误的。只用中文。`
+        };
+        return messages[lang] || messages['en'];
+      };
 
-  async updateChatTitle(chatId, title) {
-    try {
-      const response = await apiClient.put(`/api/chats/${chatId}`, { title });
-      return response.data;
-    } catch (error) {
-      console.error('Update chat title error:', error);
-      return error;
-    }
-  }
-
-  async deleteChat(chatId) {
-    try {
-      const response = await apiClient.delete(`/api/chats/${chatId}`);
-      return response.data;
-    } catch (error) {
-      console.error('Delete chat error:', error);
-      return error;
-    }
-  }
-
-  async getChatMessages(chatId) {
-    try {
-      const response = await apiClient.get(`/api/chats/${chatId}/messages`);
-      return response.data;
-    } catch (error) {
-      console.error('Get messages error:', error);
-      return error;
-    }
-  }
-
-  async sendMessage(chatId, message, model = 'openai/gpt-3.5-turbo', language = 'tr') {
-    try {
-      const response = await apiClient.post(`/api/chats/${chatId}/messages`, { 
-        message, 
-        model, 
-        language 
+      const apiMessages = [
+        {
+          role: 'system',
+          content: getSystemMessage(language)
+        }
+      ];
+      
+      // Sohbet geçmişini ekle (son 10 mesaj)
+      const recentHistory = conversationHistory.slice(-10);
+      recentHistory.forEach(msg => {
+        if (msg.role && msg.content) {
+          apiMessages.push({
+            role: msg.role === 'user' ? 'user' : 'assistant',
+            content: msg.content
+          });
+        }
       });
-      return response.data;
-    } catch (error) {
-      console.error('Send message error:', error);
-      return error;
-    }
-  }
-
-  async updateMessage(chatId, messageId, text, model = 'openai/gpt-3.5-turbo', language = 'tr') {
-    try {
-      const response = await apiClient.put(`/api/chats/${chatId}/messages/${messageId}`, { 
-        text, 
-        model, 
-        language 
+      
+      // Yeni mesajı ekle
+      apiMessages.push({
+        role: 'user',
+        content: message
       });
-      return response.data;
-    } catch (error) {
-      console.error('Update message error:', error);
-      return error;
-    }
-  }
 
-  async deleteMessage(chatId, messageId) {
-    try {
-      const response = await apiClient.delete(`/api/chats/${chatId}/messages/${messageId}`);
-      return response.data;
+      console.log('Sending request to OpenAI API:', { model, language, messageCount: apiMessages.length });
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: apiMessages,
+          max_tokens: 300,
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('OpenAI API error:', errorData);
+        return {
+          success: false,
+          message: `OpenAI API hatası: ${errorData.error?.message || 'Bilinmeyen hata'}`
+        };
+      }
+
+      const data = await response.json();
+      
+      if (data.choices && data.choices[0] && data.choices[0].message) {
+        const aiResponse = data.choices[0].message.content;
+        console.log('OpenAI response received:', aiResponse);
+        
+        return {
+          success: true,
+          message: 'AI cevabı alındı.',
+          aiResponse: aiResponse,
+          userMessage: message
+        };
+      } else {
+        return {
+          success: false,
+          message: 'OpenAI API\'den geçersiz yanıt alındı.'
+        };
+      }
     } catch (error) {
-      console.error('Delete message error:', error);
-      return error;
+      console.error('OpenAI API error:', error);
+      return {
+        success: false,
+        message: 'AI ile bağlantı kurulamadı: ' + error.message
+      };
     }
   }
 

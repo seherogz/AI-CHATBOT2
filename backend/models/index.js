@@ -67,78 +67,7 @@ const User = sequelize.define('User', {
   }
 });
 
-// Chat Model
-const Chat = sequelize.define('Chat', {
-  id: {
-    type: Sequelize.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
-  title: {
-    type: Sequelize.STRING,
-    allowNull: false
-  },
-  userId: {
-    type: Sequelize.INTEGER,
-    allowNull: true, // Anonymous chats
-    references: {
-      model: 'Users',
-      key: 'id'
-    }
-  },
-  isAnonymous: {
-    type: Sequelize.BOOLEAN,
-    defaultValue: false
-  }
-});
-
-// Message Model
-const Message = sequelize.define('Message', {
-  id: {
-    type: Sequelize.INTEGER,
-    primaryKey: true,
-    autoIncrement: true
-  },
-  text: {
-    type: Sequelize.TEXT,
-    allowNull: false
-  },
-  originalText: {
-    type: Sequelize.TEXT,
-    allowNull: true
-  },
-  sender: {
-    type: Sequelize.ENUM('user', 'ai'),
-    allowNull: false
-  },
-  chatId: {
-    type: Sequelize.INTEGER,
-    allowNull: false,
-    references: {
-      model: 'Chats',
-      key: 'id'
-    }
-  },
-  filePath: {
-    type: Sequelize.STRING,
-    allowNull: true
-  },
-  fileName: {
-    type: Sequelize.STRING,
-    allowNull: true
-  },
-  fileType: {
-    type: Sequelize.STRING,
-    allowNull: true
-  }
-});
-
-// Associations
-User.hasMany(Chat, { foreignKey: 'userId' });
-Chat.belongsTo(User, { foreignKey: 'userId' });
-
-Chat.hasMany(Message, { foreignKey: 'chatId', onDelete: 'CASCADE' });
-Message.belongsTo(Chat, { foreignKey: 'chatId' });
+// Chat ve Message modelleri kaldırıldı - sohbet geçmişi localStorage'da tutulacak
 
 // Database sync function
 const syncDatabase = async () => {
@@ -157,7 +86,5 @@ const syncDatabase = async () => {
 module.exports = {
   sequelize,
   User,
-  Chat,
-  Message,
   syncDatabase
 }; 

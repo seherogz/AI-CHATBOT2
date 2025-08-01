@@ -20,34 +20,89 @@ function AppContent() {
   const [selectedModel, setSelectedModel] = useState('openai/gpt-3.5-turbo');
   const [darkMode, setDarkMode] = useState(false);
   
+  // LocalStorage keys
+  const CHATS_KEY = 'ai_chatbot_chats';
+  const CURRENT_CHAT_KEY = 'ai_chatbot_current_chat';
+  
   // Seçim değişikliklerini backend'e bildiren fonksiyonlar
   const handleModelChange = async (newModel) => {
     setSelectedModel(newModel);
-    try {
-      await api.updateUserPreferences(newModel, language);
-      console.log('Model preference updated:', newModel);
-    } catch (error) {
-      console.error('Failed to update model preference:', error);
+    if (isAuthenticated) {
+      try {
+        await api.updateUserPreferences(newModel, language);
+        console.log('Model preference updated:', newModel);
+      } catch (error) {
+        console.error('Failed to update model preference:', error);
+      }
     }
   };
 
   const handleLanguageChange = async (newLanguage) => {
     setLanguage(newLanguage);
-    try {
-      await api.updateUserPreferences(selectedModel, newLanguage);
-      console.log('Language preference updated:', newLanguage);
-    } catch (error) {
-      console.error('Failed to update language preference:', error);
+    if (isAuthenticated) {
+      try {
+        await api.updateUserPreferences(selectedModel, newLanguage);
+        console.log('Language preference updated:', newLanguage);
+      } catch (error) {
+        console.error('Failed to update language preference:', error);
+      }
     }
   };
-  const [isLoadingChats, setIsLoadingChats] = useState(false);
+  
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingText, setEditingText] = useState('');
   const [editingChatId, setEditingChatId] = useState(null);
   const [editingChatTitle, setEditingChatTitle] = useState('');
   const messagesEndRef = useRef(null);
-  const loadChatsRef = useRef(false);
   const navigate = useNavigate();
+
+  // LocalStorage yönetim fonksiyonları
+  const loadChatsFromStorage = () => {
+    try {
+      const storedChats = localStorage.getItem(CHATS_KEY);
+      if (storedChats) {
+        const parsedChats = JSON.parse(storedChats);
+        setChats(parsedChats);
+        console.log('Chats loaded from localStorage:', parsedChats.length);
+      }
+    } catch (error) {
+      console.error('Error loading chats from localStorage:', error);
+    }
+  };
+
+  const saveChatsToStorage = (chatsToSave) => {
+    try {
+      localStorage.setItem(CHATS_KEY, JSON.stringify(chatsToSave));
+      console.log('Chats saved to localStorage:', chatsToSave.length);
+    } catch (error) {
+      console.error('Error saving chats to localStorage:', error);
+    }
+  };
+
+  const loadCurrentChatFromStorage = () => {
+    try {
+      const storedChatId = localStorage.getItem(CURRENT_CHAT_KEY);
+      if (storedChatId) {
+        setCurrentChatId(storedChatId);
+        console.log('Current chat loaded from localStorage:', storedChatId);
+      }
+    } catch (error) {
+      console.error('Error loading current chat from localStorage:', error);
+    }
+  };
+
+  const saveCurrentChatToStorage = (chatId) => {
+    try {
+      if (chatId) {
+        localStorage.setItem(CURRENT_CHAT_KEY, chatId);
+      } else {
+        localStorage.removeItem(CURRENT_CHAT_KEY);
+      }
+      console.log('Current chat saved to localStorage:', chatId);
+    } catch (error) {
+      console.error('Error saving current chat to localStorage:', error);
+    }
+  };
 
   // Uygulama başladığında token kontrolü
   useEffect(() => {
@@ -57,24 +112,24 @@ function AppContent() {
         try {
           console.log('useEffect[1]: User is authenticated, checking profile...');
           const response = await api.getProfile();
-                  if (response.success) {
-          console.log('useEffect[1]: Profile check successful, setting auth state');
-          setIsAuthenticated(true);
-          setCurrentUser(response.user);
-          
-          // Kullanıcı tercihlerini yükle
-          if (response.user.preferredModel) {
-            setSelectedModel(response.user.preferredModel);
-          }
-          if (response.user.preferredLanguage) {
-            setLanguage(response.user.preferredLanguage);
-          }
-          
-          // Eğer login sayfasındaysa chat ekranına yönlendir
-          if (window.location.pathname === '/login') {
-            navigate('/');
-          }
-        } else {
+          if (response.success) {
+            console.log('useEffect[1]: Profile check successful, setting auth state');
+            setIsAuthenticated(true);
+            setCurrentUser(response.user);
+            
+            // Kullanıcı tercihlerini yükle
+            if (response.user.preferredModel) {
+              setSelectedModel(response.user.preferredModel);
+            }
+            if (response.user.preferredLanguage) {
+              setLanguage(response.user.preferredLanguage);
+            }
+            
+            // Eğer login sayfasındaysa chat ekranına yönlendir
+            if (window.location.pathname === '/login') {
+              navigate('/');
+            }
+          } else {
             console.log('useEffect[1]: Profile check failed, logging out');
             api.logout();
             setIsAuthenticated(false);
@@ -89,20 +144,26 @@ function AppContent() {
       } else {
         console.log('useEffect[1]: No token found');
       }
+      
+      // localStorage'dan chatleri yükle
+      loadChatsFromStorage();
+      loadCurrentChatFromStorage();
     };
 
     checkAuth();
   }, [navigate]);
 
-  // Giriş yapıldığında chatleri yükle - sadece bu useEffect'te loadChats çağır
+  // Current chat değiştiğinde localStorage'a kaydet
   useEffect(() => {
-    console.log('useEffect[2]: Auth state changed:', { isAuthenticated, currentUser: currentUser?.username });
-    if (isAuthenticated && currentUser && !loadChatsRef.current) {
-      console.log('useEffect[2]: Loading chats for authenticated user:', currentUser.username);
-      loadChatsRef.current = true;
-      loadChats();
+    saveCurrentChatToStorage(currentChatId);
+  }, [currentChatId]);
+
+  // Chats değiştiğinde localStorage'a kaydet
+  useEffect(() => {
+    if (chats.length > 0) {
+      saveChatsToStorage(chats);
     }
-  }, [isAuthenticated, currentUser]);
+  }, [chats]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -178,163 +239,158 @@ function AppContent() {
     }
   };
 
-  const loadChats = async () => {
-    // Eğer zaten yükleniyorsa, tekrar çağırma
-    if (isLoadingChats) {
-      console.log('loadChats: Already loading, skipping duplicate call');
-      return;
-    }
-    
-    console.log('loadChats: Starting to load chats...');
-    try {
-      setIsLoadingChats(true);
-      setError(null);
-      const response = await api.getChats();
-      console.log('loadChats: Response received:', response);
-      
-      if (response.success) {
-        setChats(response.chats || []);
-        console.log('loadChats: Chats loaded successfully, count:', response.chats?.length || 0);
-      } else {
-        setError(response.message);
-        console.log('loadChats: Error loading chats:', response.message);
-      }
-    } catch (error) {
-      console.error('loadChats: Exception occurred:', error);
-      setError(error.message);
-    } finally {
-      setIsLoadingChats(false);
-      console.log('loadChats: Finished loading chats');
-    }
-  };
-
-  const createNewChat = async () => {
+  const createNewChat = () => {
     try {
       setError(null);
-      setIsLoading(true);
       
-      console.log('Creating new chat...');
-      const response = await api.createChat(`Sohbet ${chats.length + 1}`);
-      console.log('Create chat response:', response);
+      const newChatId = `chat_${Date.now()}`;
+      const newChat = {
+        id: newChatId,
+        title: `Sohbet ${chats.length + 1}`,
+        messages: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
       
-      if (response.success) {
-        // Yeni chat'i doğrudan state'e ekle, loadChats çağırma
-        setChats(prevChats => [...prevChats, response.chat]);
-        setCurrentChatId(response.chat.id);
-        setMessages([]);
-      } else {
-        setError(response.message);
-      }
+      console.log('Creating new chat:', newChat);
+      
+      const updatedChats = [...chats, newChat];
+      setChats(updatedChats);
+      setCurrentChatId(newChatId);
+      setMessages([]);
+      
+      console.log('New chat created successfully');
     } catch (error) {
       console.error('Create chat error:', error);
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
+      setError('Yeni sohbet oluşturulamadı.');
     }
   };
 
-  const selectChat = async (chatId) => {
+  const selectChat = (chatId) => {
+    // Eğer zaten seçili sohbet ise, gereksiz işlem yapma
+    if (currentChatId === chatId) {
+      console.log('Chat already selected, skipping:', chatId);
+      return;
+    }
+
     try {
       setError(null);
       setCurrentChatId(chatId);
       
       console.log('Selecting chat:', chatId);
-      const response = await api.getChatMessages(chatId);
-      console.log('Get messages response:', response);
       
-      if (response.success) {
-        // Backend'den gelen mesajları doğrudan kullan
-        const messagesWithTimestamps = (response.messages || []).map(msg => ({
-          ...msg,
-          timestamp: msg.createdAt || new Date().toISOString()
-        }));
-        setMessages(messagesWithTimestamps);
+      // localStorage'dan seçili chat'in mesajlarını yükle
+      const chat = chats.find(c => c.id === chatId);
+      if (chat && chat.messages) {
+        setMessages(chat.messages);
+        console.log('Chat messages loaded:', chat.messages.length);
       } else {
-        setError(response.message);
+        setMessages([]);
+        console.log('No messages found for chat:', chatId);
       }
     } catch (error) {
       console.error('Select chat error:', error);
-      setError(error.message);
+      setError('Sohbet seçilemedi.');
     }
   };
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || !currentChatId) return;
 
-    const tempUserMessage = {
-      id: `temp_${Date.now()}`,
+    const userMessage = {
+      id: `user_${Date.now()}`,
       text: inputMessage,
       sender: 'user',
       timestamp: new Date().toISOString()
     };
 
-    setMessages(prev => [...prev, tempUserMessage]);
+    // Kullanıcı mesajını hemen ekle
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setInputMessage('');
     setIsLoading(true);
     setError(null);
 
     try {
-      console.log('Sending message:', { chatId: currentChatId, message: inputMessage, model: selectedModel, language: language });
-      const response = await api.sendMessage(currentChatId, inputMessage, selectedModel, language);
-      console.log('Send message response:', response);
+      console.log('Sending message to AI:', { message: inputMessage, model: selectedModel, language: language });
+      
+      // Sohbet geçmişini hazırla (API için)
+      const conversationHistory = updatedMessages.slice(0, -1).map(msg => ({
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      }));
+      
+      const response = await api.sendAIMessage(inputMessage, conversationHistory, selectedModel, language);
+      console.log('AI response:', response);
       
       if (response.success) {
-        // Backend'den dönen gerçek mesaj ID'lerini kullan
-        const realUserMessage = {
-          id: response.userMessageId || tempUserMessage.id,
-          text: response.translatedMessage || inputMessage, // Çevrilmiş mesaj
-          originalText: inputMessage, // Orijinal mesaj
-          sender: 'user',
-          timestamp: new Date().toISOString()
-        };
-
         const aiMessage = {
-          id: response.aiMessageId || `ai_${Date.now()}`,
+          id: `ai_${Date.now()}`,
           text: response.aiResponse,
           sender: 'ai',
           timestamp: new Date().toISOString()
         };
 
-        // Geçici mesajı gerçek mesajla değiştir
-        setMessages(prev => prev.map(msg => 
-          msg.id === tempUserMessage.id ? realUserMessage : msg
-        ).concat(aiMessage));
+        // AI mesajını ekle
+        const finalMessages = [...updatedMessages, aiMessage];
+        setMessages(finalMessages);
+        
+        // Chat'i güncelle ve localStorage'a kaydet
+        updateChatMessages(currentChatId, finalMessages);
       } else {
-        // Hata durumunda geçici mesajı kaldır
-        setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
-        setError(response.message);
+        // Hata durumunda kullanıcı mesajını kaldır
+        setMessages(messages);
+        setError(response.message || 'AI servisi ile bağlantı kurulamadı.');
       }
     } catch (error) {
       console.error('Send message error:', error);
-      // Hata durumunda geçici mesajı kaldır
-      setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
-      setError(error.message);
+      // Hata durumunda kullanıcı mesajını kaldır
+      setMessages(messages);
+      setError('Mesaj gönderilemedi.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const deleteChat = async (chatId) => {
+  // Chat mesajlarını güncelle ve localStorage'a kaydet
+  const updateChatMessages = (chatId, newMessages) => {
+    try {
+      const updatedChats = chats.map(chat => 
+        chat.id === chatId 
+          ? { 
+              ...chat, 
+              messages: newMessages, 
+              updatedAt: new Date().toISOString() 
+            }
+          : chat
+      );
+      setChats(updatedChats);
+      console.log('Chat messages updated for:', chatId);
+    } catch (error) {
+      console.error('Error updating chat messages:', error);
+    }
+  };
+
+  const deleteChat = (chatId) => {
     try {
       setError(null);
       
       console.log('Deleting chat:', chatId);
-      const response = await api.deleteChat(chatId);
-      console.log('Delete chat response:', response);
       
-      if (response.success) {
-        // Silinen chat'i doğrudan state'den çıkar, loadChats çağırma
-        setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
-        if (currentChatId === chatId) {
-          setCurrentChatId(null);
-          setMessages([]);
-        }
-      } else {
-        setError(response.message);
+      // Chat'i listeden kaldır
+      const updatedChats = chats.filter(chat => chat.id !== chatId);
+      setChats(updatedChats);
+      
+      // Eğer silinen chat şu an seçili ise, seçimi kaldır
+      if (currentChatId === chatId) {
+        setCurrentChatId(null);
+        setMessages([]);
       }
+      
+      console.log('Chat deleted successfully:', chatId);
     } catch (error) {
       console.error('Delete chat error:', error);
-      setError(error.message);
+      setError('Sohbet silinemedi.');
     }
   };
 
@@ -351,82 +407,81 @@ function AppContent() {
   const saveEditMessage = async (messageId) => {
     if (!editingText.trim()) return;
 
-    // Eğer geçici ID ise (temp_ ile başlıyorsa), düzenlemeye izin verme
-    if (typeof messageId === 'string' && messageId.startsWith('temp_')) {
-      setError('Bu mesaj henüz kaydedilmedi, düzenlenemez.');
-      setEditingMessageId(null);
-      setEditingText('');
-      return;
-    }
-
     try {
       setError(null);
       setIsLoading(true);
       
-      console.log('Updating message:', { chatId: currentChatId, messageId, text: editingText, model: selectedModel, language: language });
+      console.log('Updating message:', { messageId, text: editingText, model: selectedModel, language: language });
       
-      // Düzenlenen mesajdan sonraki tüm mesajları frontend'den de kaldır
+      // Düzenlenen mesajdan sonraki tüm mesajları kaldır
       const editedMessageIndex = messages.findIndex(msg => msg.id === messageId);
-      if (editedMessageIndex !== -1) {
-        const messagesUpToEdited = messages.slice(0, editedMessageIndex + 1);
-        setMessages(messagesUpToEdited);
+      if (editedMessageIndex === -1) {
+        setError('Mesaj bulunamadı.');
+        return;
       }
       
-      const response = await api.updateMessage(currentChatId, messageId, editingText, selectedModel, language);
-      console.log('Update message response:', response);
+      // Mesajı güncelle ve sonrasını sil
+      const updatedMessages = messages.slice(0, editedMessageIndex + 1);
+      updatedMessages[editedMessageIndex] = {
+        ...updatedMessages[editedMessageIndex],
+        text: editingText
+      };
+      
+      setMessages(updatedMessages);
+      
+      // Yeni AI cevabı al
+      const conversationHistory = updatedMessages.map(msg => ({
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      }));
+      
+      const response = await api.sendAIMessage(editingText, conversationHistory.slice(0, -1), selectedModel, language);
+      console.log('AI response for edited message:', response);
       
       if (response.success) {
-        // Düzenlenmiş mesajı güncelle
-        setMessages(prev => prev.map(msg => 
-          msg.id === messageId ? { ...msg, text: editingText } : msg
-        ));
+        const aiMessage = {
+          id: `ai_${Date.now()}`,
+          text: response.aiResponse,
+          sender: 'ai',
+          timestamp: new Date().toISOString()
+        };
         
-        // Yeni AI yanıtını ekle
-        if (response.aiResponse && response.aiMessageId) {
-          const aiMessage = {
-            id: response.aiMessageId,
-            text: response.aiResponse,
-            sender: 'ai',
-            timestamp: new Date().toISOString()
-          };
-          setMessages(prev => [...prev, aiMessage]);
-        }
+        const finalMessages = [...updatedMessages, aiMessage];
+        setMessages(finalMessages);
+        
+        // Chat'i güncelle ve localStorage'a kaydet
+        updateChatMessages(currentChatId, finalMessages);
         
         setEditingMessageId(null);
         setEditingText('');
       } else {
-        setError(response.message);
+        setError(response.message || 'AI cevabı alınamadı.');
       }
     } catch (error) {
       console.error('Update message error:', error);
-      setError(error.message);
+      setError('Mesaj güncellenemedi.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const deleteMessage = async (messageId) => {
-    // Eğer geçici ID ise (temp_ ile başlıyorsa), sadece frontend'den kaldır
-    if (typeof messageId === 'string' && messageId.startsWith('temp_')) {
-      setMessages(prev => prev.filter(msg => msg.id !== messageId));
-      return;
-    }
-
+  const deleteMessage = (messageId) => {
     try {
       setError(null);
       
-      console.log('Deleting message:', { chatId: currentChatId, messageId });
-      const response = await api.deleteMessage(currentChatId, messageId);
-      console.log('Delete message response:', response);
+      console.log('Deleting message:', messageId);
       
-      if (response.success) {
-        setMessages(prev => prev.filter(msg => msg.id !== messageId));
-      } else {
-        setError(response.message);
-      }
+      // Mesajı listeden kaldır
+      const updatedMessages = messages.filter(msg => msg.id !== messageId);
+      setMessages(updatedMessages);
+      
+      // Chat'i güncelle ve localStorage'a kaydet
+      updateChatMessages(currentChatId, updatedMessages);
+      
+      console.log('Message deleted successfully:', messageId);
     } catch (error) {
       console.error('Delete message error:', error);
-      setError(error.message);
+      setError('Mesaj silinemedi.');
     }
   };
 
@@ -440,31 +495,33 @@ function AppContent() {
     setEditingChatTitle('');
   };
 
-  const saveEditChatTitle = async (chatId) => {
+  const saveEditChatTitle = (chatId) => {
     if (!editingChatTitle.trim()) return;
 
     try {
       setError(null);
-      setIsLoading(true);
       
       console.log('Updating chat title:', { chatId, title: editingChatTitle });
-      const response = await api.updateChatTitle(chatId, editingChatTitle);
-      console.log('Update chat title response:', response);
       
-      if (response.success) {
-        setChats(prev => prev.map(chat => 
-          chat.id === chatId ? { ...chat, title: editingChatTitle } : chat
-        ));
-        setEditingChatId(null);
-        setEditingChatTitle('');
-      } else {
-        setError(response.message);
-      }
+      // Chat başlığını güncelle
+      const updatedChats = chats.map(chat => 
+        chat.id === chatId 
+          ? { 
+              ...chat, 
+              title: editingChatTitle,
+              updatedAt: new Date().toISOString()
+            } 
+          : chat
+      );
+      
+      setChats(updatedChats);
+      setEditingChatId(null);
+      setEditingChatTitle('');
+      
+      console.log('Chat title updated successfully:', chatId);
     } catch (error) {
       console.error('Update chat title error:', error);
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
+      setError('Sohbet başlığı güncellenemedi.');
     }
   };
 
@@ -483,7 +540,10 @@ function AppContent() {
       setCurrentChatId(null);
       setMessages([]);
       setError(null);
-      loadChatsRef.current = false; // Ref'i sıfırla
+      
+      // localStorage'ı temizle
+      localStorage.removeItem(CHATS_KEY);
+      localStorage.removeItem(CURRENT_CHAT_KEY);
       
       // Logout sonrası login sayfasına yönlendir
       navigate('/login');
@@ -496,7 +556,11 @@ function AppContent() {
       setCurrentChatId(null);
       setMessages([]);
       setError(null);
-      loadChatsRef.current = false;
+      
+      // localStorage'ı temizle
+      localStorage.removeItem(CHATS_KEY);
+      localStorage.removeItem(CURRENT_CHAT_KEY);
+      
       navigate('/login');
     }
   };
