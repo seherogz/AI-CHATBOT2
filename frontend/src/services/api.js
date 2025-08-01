@@ -202,9 +202,13 @@ class ApiService {
     }
   }
 
-  async updateMessage(chatId, messageId, text) {
+  async updateMessage(chatId, messageId, text, model = 'openai/gpt-3.5-turbo', language = 'tr') {
     try {
-      const response = await apiClient.put(`/api/chats/${chatId}/messages/${messageId}`, { text });
+      const response = await apiClient.put(`/api/chats/${chatId}/messages/${messageId}`, { 
+        text, 
+        model, 
+        language 
+      });
       return response.data;
     } catch (error) {
       console.error('Update message error:', error);

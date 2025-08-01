@@ -709,9 +709,9 @@ app.post('/api/chats/:id/messages', optionalAuth, upload.single('file'), async (
 app.put('/api/chats/:chatId/messages/:messageId', optionalAuth, async (req, res) => {
   try {
     const { chatId, messageId } = req.params;
-    const { text } = req.body;
+    const { text, model = 'gpt-3.5-turbo', language = 'tr' } = req.body;
     
-    console.log('Updating message:', { chatId, messageId, text });
+    console.log('Updating message:', { chatId, messageId, text, model, language });
     
     // Sohbet kontrolü
     let whereClause = { id: chatId };
@@ -751,15 +751,132 @@ app.put('/api/chats/:chatId/messages/:messageId', optionalAuth, async (req, res)
       });
     }
 
+    // Düzenlenen mesajdan sonraki tüm mesajları sil
+    await Message.destroy({
+      where: {
+        chatId: chatId,
+        createdAt: {
+          [require('sequelize').Op.gt]: message.createdAt
+        }
+      }
+    });
+
+    console.log('Deleted all messages after the edited message');
+
+    // Mesajı güncelle
     message.text = text;
+    message.originalText = message.originalText || message.text; // Orijinal metni koru
     await message.save();
 
     console.log('Message updated successfully:', messageId);
+
+    // Dil seçimine göre system message hazırla
+    const getSystemMessage = (lang) => {
+      const messages = {
+        tr: `Sen yardımsever bir AI asistanısın. Kullanıcılara kibar, açıklayıcı ve yararlı yanıtlar ver. KESINLIKLE SADECE Türkçe yanıt ver, başka dil kullanma. Eğer başka dilde yanıt verirsen, bu yanlış olur. SADECE TÜRKÇE.`,
+        en: `You are a helpful AI assistant. Provide kind, explanatory and useful responses to users. CRITICAL: Respond ONLY in English, NEVER use any other language. If you respond in any other language, it is WRONG. ENGLISH ONLY.`,
+        de: `Du bist ein hilfreicher KI-Assistent. KRITISCH: Du musst AUSSCHLIESSLICH auf Deutsch antworten. VERWENDE KEINE ANDERE SPRACHE. Wenn du in einer anderen Sprache antwortest, ist das FALSCH. NUR DEUTSCH.`,
+        fr: `Tu es un assistant IA utile. CRITIQUE: Tu dois RÉPONDRE UNIQUEMENT en français. N'UTILISE AUCUNE AUTRE LANGUE. Si tu réponds dans une autre langue, c'est FAUX. FRANÇAIS SEULEMENT.`,
+        es: `Eres un asistente de IA útil. CRÍTICO: Debes responder ÚNICAMENTE en español. NO USES NINGÚN OTRO IDIOMA. Si respondes en otro idioma, es INCORRECTO. SOLO ESPAÑOL.`,
+        it: `Sei un assistente IA utile. CRITICO: Devi rispondere ESCLUSIVAMENTE in italiano. NON USARE ALTRE LINGUE. Se rispondi in un'altra lingua, è SBAGLIATO. SOLO ITALIANO.`,
+        ru: `Ты полезный ИИ-ассистент. КРИТИЧНО: Ты должен отвечать ТОЛЬКО на русском языке. НЕ ИСПОЛЬЗУЙ ДРУГИЕ ЯЗЫКИ. Если ты отвечаешь на другом языке, это НЕПРАВИЛЬНО. ТОЛЬКО РУССКИЙ.`,
+        ja: `あなたは役立つAIアシスタントです。重要：あなたは日本語でのみ答える必要があります。他の言語は使用しないでください。他の言語で答えると間違っています。日本語のみ。`,
+        ko: `당신은 도움이 되는 AI 어시스턴트입니다. 중요: 당신은 한국어로만 답변해야 합니다. 다른 언어를 사용하지 마세요. 다른 언어로 답변하면 틀립니다. 한국어만.`,
+        zh: `你是一个有用的AI助手。重要：你必须只用中文回答。不要使用其他语言。如果你用其他语言回答，那是错误的。只用中文。`
+      };
+      return messages[lang] || messages['en'];
+    };
+
+    const systemMessage = {
+      role: 'system',
+      content: getSystemMessage(language)
+    };
+    
+    console.log('Selected language:', language);
+    console.log('System message:', systemMessage.content);
+
+    const apiMessages = [systemMessage];
+    
+    // Güncellenmiş sohbet geçmişini API'ye gönder
+    const remainingMessages = await Message.findAll({
+      where: { chatId: chat.id },
+      order: [['createdAt', 'ASC']]
+    });
+    
+    remainingMessages.forEach(msg => {
+      apiMessages.push({
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      });
+    });
+
+    let aiResponse = 'Üzgünüm, şu anda AI servisi ile bağlantı kuramıyorum. Lütfen daha sonra tekrar deneyin.';
+
+    // OpenAI API çağrısı
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        console.log('Calling OpenAI API for updated message...');
+        
+        // OpenAI API için mesaj formatını hazırla
+        const openaiMessages = apiMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }));
+
+        console.log('OpenAI API request:', {
+          url: 'https://api.openai.com/v1/chat/completions',
+          model: model,
+          language: language,
+          messages: openaiMessages
+        });
+
+        const response = await axios.post(
+          'https://api.openai.com/v1/chat/completions',
+          {
+            model: model,
+            messages: openaiMessages,
+            max_tokens: 300,
+            temperature: 0.7
+          },
+          { 
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+            } 
+          }
+        );
+        
+        if (response.data && response.data.choices && response.data.choices[0]) {
+          aiResponse = response.data.choices[0].message.content;
+          console.log('OpenAI Response received:', aiResponse);
+        }
+      } catch (apiError) {
+        console.error('OpenAI API Hatası:', apiError.response ? apiError.response.data : apiError.message);
+        aiResponse = 'AI servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.';
+      }
+    } else {
+      console.warn('OPENAI_API_KEY not found in environment variables');
+      aiResponse = 'AI servisi yapılandırılmamış. Lütfen API anahtarını ayarlayın.';
+    }
+
+    // AI yanıtını kaydet
+    const aiMessage = await Message.create({
+      text: aiResponse,
+      sender: 'ai',
+      chatId: chat.id
+    });
+
+    console.log('AI message created with ID:', aiMessage.id);
+    
+    chat.updatedAt = new Date();
+    await chat.save();
     
     res.status(200).json({ 
       success: true, 
-      message: 'Mesaj güncellendi.',
-      updatedMessage: message
+      message: 'Mesaj güncellendi ve yeni AI cevabı alındı.',
+      updatedMessage: message,
+      aiResponse: aiResponse,
+      aiMessageId: aiMessage.id
     });
 
   } catch (error) {

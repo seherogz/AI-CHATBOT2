@@ -363,14 +363,35 @@ function AppContent() {
       setError(null);
       setIsLoading(true);
       
-      console.log('Updating message:', { chatId: currentChatId, messageId, text: editingText });
-      const response = await api.updateMessage(currentChatId, messageId, editingText);
+      console.log('Updating message:', { chatId: currentChatId, messageId, text: editingText, model: selectedModel, language: language });
+      
+      // Düzenlenen mesajdan sonraki tüm mesajları frontend'den de kaldır
+      const editedMessageIndex = messages.findIndex(msg => msg.id === messageId);
+      if (editedMessageIndex !== -1) {
+        const messagesUpToEdited = messages.slice(0, editedMessageIndex + 1);
+        setMessages(messagesUpToEdited);
+      }
+      
+      const response = await api.updateMessage(currentChatId, messageId, editingText, selectedModel, language);
       console.log('Update message response:', response);
       
       if (response.success) {
+        // Düzenlenmiş mesajı güncelle
         setMessages(prev => prev.map(msg => 
           msg.id === messageId ? { ...msg, text: editingText } : msg
         ));
+        
+        // Yeni AI yanıtını ekle
+        if (response.aiResponse && response.aiMessageId) {
+          const aiMessage = {
+            id: response.aiMessageId,
+            text: response.aiResponse,
+            sender: 'ai',
+            timestamp: new Date().toISOString()
+          };
+          setMessages(prev => [...prev, aiMessage]);
+        }
+        
         setEditingMessageId(null);
         setEditingText('');
       } else {
