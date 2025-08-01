@@ -14,7 +14,7 @@ const { generateToken, authenticateToken, optionalAuth } = require('./middleware
 
 const app = express();
 
-// CORS Ayarları
+// CORS Ayarları:CORS ayarları frontend ile iletişimi sağlar, 
 app.use(cors({
   origin: 'http://localhost:3000',
   credentials: true
@@ -22,7 +22,7 @@ app.use(cors({
 
 app.options('*', cors());
 
-// Body parser middleware
+// Body parser middleware, gelen istekleri parse eder.
 app.use(express.json());
 
 // Dosya yükleme konfigürasyonu
@@ -59,7 +59,7 @@ const upload = multer({
 
 // --- LOGLAMA MIDDLEWARE ---
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`); //req.method: HTTP metodu (GET, POST, PUT, DELETE), gelen istekleri loglar.
   if (req.body && Object.keys(req.body).length > 0) {
     console.log('Request Body:', req.body);
   }
@@ -78,7 +78,7 @@ app.use((err, req, res, next) => {
 
 // Ana sayfa
 app.get('/', (req, res) => {
-  res.json({ message: 'AI Chatbot API çalışıyor' });
+  res.json({ message: 'AI Chatbot API çalışıyor' }); //json formatında yanıt gönderir.
 });
 
 // --- AUTH ENDPOINTS ---

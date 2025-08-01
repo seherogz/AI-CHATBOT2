@@ -5,7 +5,6 @@ import Login from './components/Login';
 import Register from './components/Register';
 import ModelSelector from './components/ModelSelector';
 import LanguageSelector from './components/LanguageSelector';
-import FileUpload from './components/FileUpload';
 import api from './services/api';
 
 function AppContent() {
@@ -20,8 +19,6 @@ function AppContent() {
   const [language, setLanguage] = useState('tr');
   const [selectedModel, setSelectedModel] = useState('openai/gpt-3.5-turbo');
   const [darkMode, setDarkMode] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [showOptions, setShowOptions] = useState(false);
   
   // Seçim değişikliklerini backend'e bildiren fonksiyonlar
   const handleModelChange = async (newModel) => {
@@ -42,14 +39,6 @@ function AppContent() {
     } catch (error) {
       console.error('Failed to update language preference:', error);
     }
-  };
-
-  const handleFileSelect = (file) => {
-    setSelectedFile(file);
-  };
-
-  const toggleOptions = () => {
-    setShowOptions(!showOptions);
   };
   const [isLoadingChats, setIsLoadingChats] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -276,43 +265,27 @@ function AppContent() {
       id: `temp_${Date.now()}`,
       text: inputMessage,
       sender: 'user',
-      timestamp: new Date().toISOString(),
-      file: selectedFile
+      timestamp: new Date().toISOString()
     };
 
     setMessages(prev => [...prev, tempUserMessage]);
     setInputMessage('');
-    setSelectedFile(null);
     setIsLoading(true);
     setError(null);
 
     try {
-      console.log('Sending message:', { 
-        chatId: currentChatId, 
-        message: inputMessage, 
-        model: selectedModel, 
-        language: language,
-        file: selectedFile?.name 
-      });
-      
-      let response;
-      if (selectedFile) {
-        response = await api.sendMessageWithFile(currentChatId, inputMessage, selectedFile, selectedModel, language);
-      } else {
-        response = await api.sendMessage(currentChatId, inputMessage, selectedModel, language);
-      }
-      
+      console.log('Sending message:', { chatId: currentChatId, message: inputMessage, model: selectedModel, language: language });
+      const response = await api.sendMessage(currentChatId, inputMessage, selectedModel, language);
       console.log('Send message response:', response);
       
       if (response.success) {
         // Backend'den dönen gerçek mesaj ID'lerini kullan
         const realUserMessage = {
           id: response.userMessageId || tempUserMessage.id,
-          text: inputMessage,
-          originalText: inputMessage,
+          text: response.translatedMessage || inputMessage, // Çevrilmiş mesaj
+          originalText: inputMessage, // Orijinal mesaj
           sender: 'user',
-          timestamp: new Date().toISOString(),
-          file: selectedFile
+          timestamp: new Date().toISOString()
         };
 
         const aiMessage = {
@@ -395,45 +368,11 @@ function AppContent() {
       console.log('Update message response:', response);
       
       if (response.success) {
-        // Mesajı güncelle
         setMessages(prev => prev.map(msg => 
           msg.id === messageId ? { ...msg, text: editingText } : msg
         ));
         setEditingMessageId(null);
         setEditingText('');
-        
-        // Düzenlenen mesaj kullanıcı mesajıysa, AI'ya tekrar gönder
-        const updatedMessage = messages.find(msg => msg.id === messageId);
-        if (updatedMessage && updatedMessage.sender === 'user') {
-          console.log('Re-sending edited message to AI:', editingText);
-          
-          // Düzenlenen mesajdan sonraki tüm mesajları frontend'den sil (backend'den silme)
-          const messageIndex = messages.findIndex(msg => msg.id === messageId);
-          
-          // Frontend'den düzenlenen mesajdan sonraki tüm mesajları sil
-          setMessages(prev => prev.slice(0, messageIndex + 1));
-          
-          console.log('Messages removed from frontend after edit');
-          
-          // AI'ya düzenlenen mesajı gönder
-          const aiResponse = await api.sendMessage(currentChatId, editingText, selectedModel, language);
-          console.log('AI response to edited message:', aiResponse);
-          
-          if (aiResponse.success) {
-            // Yeni AI mesajını ekle
-            const newAiMessage = {
-              id: aiResponse.aiMessageId || `temp_ai_${Date.now()}`,
-              text: aiResponse.aiResponse,
-              sender: 'ai',
-              timestamp: new Date().toISOString()
-            };
-            
-            setMessages(prev => [...prev, newAiMessage]);
-            scrollToBottom();
-          } else {
-            setError('AI yanıtı alınamadı: ' + aiResponse.message);
-          }
-        }
       } else {
         setError(response.message);
       }
@@ -624,7 +563,7 @@ function AppContent() {
     }
   };
 
-  const t = translations[language] || translations['tr'];
+  const t = translations[language];
   const location = useLocation();
 
   // Giriş yapmamış kullanıcıları login sayfasına yönlendir
@@ -817,23 +756,9 @@ function AppContent() {
                       <>
                         <div className="message-content">
                           {message.text}
-                          {message.file && (
-                            <div className="message-file">
-                              <div className="file-preview">
-                                {message.file.type.startsWith('image/') ? (
-                                  <img 
-                                    src={URL.createObjectURL(message.file)} 
-                                    alt="Uploaded file" 
-                                    className="file-image"
-                                  />
-                                ) : (
-                                  <div className="file-info">
-                                    <span className="file-icon">📎</span>
-                                    <span className="file-name">{message.file.name}</span>
-                                    <span className="file-size">({(message.file.size / 1024).toFixed(1)} KB)</span>
-                                  </div>
-                                )}
-                              </div>
+                          {message.originalText && message.originalText !== message.text && (
+                            <div className="original-text">
+                              <small>Orijinal: {message.originalText}</small>
                             </div>
                           )}
                         </div>
@@ -879,6 +804,20 @@ function AppContent() {
               </div>
 
               <div className="input-container">
+                <div className="input-controls">
+                                <ModelSelector
+                selectedModel={selectedModel}
+                onModelChange={handleModelChange}
+                disabled={isLoading}
+                compact={true}
+              />
+              <LanguageSelector
+                selectedLanguage={language}
+                onLanguageChange={handleLanguageChange}
+                disabled={isLoading}
+                compact={true}
+              />
+                </div>
                 <div className="input-row">
                   <input
                     type="text"
@@ -890,14 +829,6 @@ function AppContent() {
                     className="message-input"
                   />
                   <button
-                    type="button"
-                    onClick={toggleOptions}
-                    className="options-btn"
-                    title="Diğer seçenekler"
-                  >
-                    ⋯
-                  </button>
-                  <button
                     onClick={sendMessage}
                     disabled={isLoading || !inputMessage.trim()}
                     className="send-btn"
@@ -905,45 +836,6 @@ function AppContent() {
                     {t.send}
                   </button>
                 </div>
-                
-                {showOptions && (
-                  <div className="options-panel">
-                    <div className="options-row">
-                      <ModelSelector
-                        selectedModel={selectedModel}
-                        onModelChange={handleModelChange}
-                        disabled={isLoading}
-                        compact={true}
-                      />
-                      <LanguageSelector
-                        selectedLanguage={language}
-                        onLanguageChange={handleLanguageChange}
-                        disabled={isLoading}
-                        compact={true}
-                      />
-                      <FileUpload
-                        onFileSelect={handleFileSelect}
-                        disabled={isLoading}
-                      />
-                    </div>
-                  </div>
-                )}
-                
-                {selectedFile && (
-                  <div className="selected-file-display">
-                    <div className="file-info">
-                      <span className="file-name">{selectedFile.name}</span>
-                      <span className="file-size">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
-                    </div>
-                    <button 
-                      type="button" 
-                      className="remove-file-btn"
-                      onClick={() => setSelectedFile(null)}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
               </div>
             </>
           ) : (

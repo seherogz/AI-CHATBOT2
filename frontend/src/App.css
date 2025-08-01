@@ -82,6 +82,74 @@ body {
 .controls {
   padding: 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+}
+
+.hotel-selector-btn {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--white);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 12px;
+  text-align: left;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.hotel-selector-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.hotel-selector-btn:active {
+  transform: translateY(0);
+}
+
+.hotel-selector-btn::after {
+  content: '▼';
+  font-size: 0.8rem;
+  transition: transform 0.3s ease;
+}
+
+.hotel-selector-btn:hover::after {
+  transform: rotate(180deg);
+}
+
+.hotel-selector-modal {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--white);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 9999;
+  max-height: 400px;
+  overflow-y: auto;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  min-height: 150px;
+  backdrop-filter: blur(10px);
+}
+
+.hotel-selector-modal .hotel-selector {
+  margin-bottom: 0;
+}
+
+.hotel-selector-modal .hotel-selector-label {
+  color: var(--dark-gray);
+  font-size: 14px;
+  margin-bottom: 8px;
 }
 
 .new-chat-btn {
@@ -499,180 +567,6 @@ body {
   border-left: 3px solid #ddd;
 }
 
-/* File display styles */
-.message-file {
-  margin-top: 10px;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.file-preview {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 8px;
-}
-
-.file-image {
-  max-width: 200px;
-  max-height: 200px;
-  border-radius: 6px;
-  object-fit: cover;
-}
-
-.file-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-}
-
-.file-icon {
-  font-size: 20px;
-  color: #666;
-}
-
-.file-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
-  word-break: break-all;
-}
-
-.file-size {
-  font-size: 12px;
-  color: #666;
-  white-space: nowrap;
-}
-
-/* Dark mode for file display */
-.app.dark-mode .file-preview {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.app.dark-mode .file-name {
-  color: #e0e0e0;
-}
-
-.app.dark-mode .file-size {
-  color: #aaa;
-}
-
-.app.dark-mode .file-icon {
-  color: #aaa;
-}
-
-/* Selected file display in input area */
-.selected-file-display {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background-color: #e8f5e8;
-  border: 1px solid #4caf50;
-  border-radius: 6px;
-  padding: 8px 12px;
-  margin-top: 8px;
-  font-size: 14px;
-}
-
-.selected-file-display .file-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.selected-file-display .file-name {
-  font-weight: 500;
-  color: #333;
-  word-break: break-all;
-}
-
-.selected-file-display .file-size {
-  font-size: 12px;
-  color: #666;
-}
-
-.selected-file-display .remove-file-btn {
-  background: none;
-  border: none;
-  color: #dc3545;
-  font-size: 14px;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-}
-
-.selected-file-display .remove-file-btn:hover {
-  background-color: #ffebee;
-}
-
-/* Dark mode for selected file display */
-.app.dark-mode .selected-file-display {
-  background-color: #1a2e1a;
-  border-color: #4caf50;
-}
-
-.app.dark-mode .selected-file-display .file-name {
-  color: #e0e0e0;
-}
-
-.app.dark-mode .selected-file-display .file-size {
-  color: #aaa;
-}
-
-.app.dark-mode .selected-file-display .remove-file-btn:hover {
-  background-color: #2d1a1a;
-}
-
-/* Options panel styles */
-.options-panel {
-  margin-top: 10px;
-  padding: 15px;
-  background: var(--white);
-  border: 1px solid var(--color5);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  animation: slideDown 0.3s ease;
-}
-
-.options-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Dark mode for options panel */
-.app.dark-mode .options-panel {
-  background: #2a2a2a;
-  border-color: #444;
-}
-
-.app.dark-mode .options-btn {
-  background: #2a2a2a;
-  color: #e0e0e0;
-  border-color: #444;
-}
-
-.app.dark-mode .options-btn:hover {
-  background: #3a3a3a;
-  border-color: #555;
-}
-
 .user-message .original-text {
   background: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.7);
@@ -875,7 +769,7 @@ body {
 
 .input-row {
   display: flex;
-  gap: 10px;
+  gap: 15px;
   align-items: center;
 }
 
@@ -899,28 +793,6 @@ body {
 .message-input:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.options-btn {
-  background: var(--light-gray);
-  color: var(--color2);
-  border: 2px solid var(--color5);
-  padding: 15px 18px;
-  border-radius: 25px;
-  font-size: 1.2rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  min-width: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.options-btn:hover {
-  background: var(--white);
-  border-color: var(--color3);
-  transform: translateY(-1px);
 }
 
 .send-btn {
@@ -1207,4 +1079,25 @@ body {
   .message {
     max-width: 95%;
   }
+}
+
+/* Dark mode hotel selector styles */
+.app.dark-mode .hotel-selector-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #e0e0e0;
+}
+
+.app.dark-mode .hotel-selector-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.app.dark-mode .hotel-selector-modal {
+  background: #2d2d2d;
+  border: 1px solid #555;
+}
+
+.app.dark-mode .hotel-selector-modal .hotel-selector-label {
+  color: #e0e0e0;
 }
