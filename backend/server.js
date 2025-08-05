@@ -214,13 +214,14 @@ app.post('/api/auth/logout', authenticateToken, async (req, res) => { //Sadece t
 // Kullanıcı tercihlerini güncelle
 app.post('/api/user/preferences', authenticateToken, async (req, res) => { //Sadece token’ı olan (giriş yapmış) kullanıcı tercihlerini güncelleyebilir.
   try {
-    const { model, language } = req.body;  //kullanıcının gönderdiği model ve language bilgileri alınır.
+    const { model, language, hotel } = req.body;  //kullanıcının gönderdiği model ve language bilgileri alınır.
     
     console.log('Updating user preferences:', {  
       userId: req.user.id, 
       username: req.user.username, 
       model, 
-      language 
+      language,
+      hotel
     });
     
     // Kullanıcı tercihlerini güncelle
@@ -247,168 +248,6 @@ app.post('/api/user/preferences', authenticateToken, async (req, res) => { //Sad
 });
 
 // --- OTELLER VERİSİ ---
-const hotels = [
-  {
-    "id": 1,
-    "name": "Grand Sunrise Hotel",
-    "location": "Antalya",
-    "price": 1800,
-    "stars": 5,
-    "features": ["denize sıfır", "spa", "her şey dahil"]
-  },
-  {
-    "id": 2,
-    "name": "Mountain Breeze Resort",
-    "location": "Bolu",
-    "price": 950,
-    "stars": 4,
-    "features": ["orman manzaralı", "kahvaltı dahil", "doğa yürüyüşleri"]
-  },
-  {
-    "id": 3,
-    "name": "Urban Stay Hotel",
-    "location": "İstanbul",
-    "price": 1200,
-    "stars": 3,
-    "features": ["merkezde", "ücretsiz Wi-Fi", "kahvaltı"]
-  },
-  {
-    "id": 4,
-    "name": "Sahil Tatil Köyü",
-    "location": "İzmir",
-    "price": 1500,
-    "stars": 4,
-    "features": ["havuz", "plaja yakın", "animasyon"]
-  },
-  {
-    "id": 5,
-    "name": "Kapadokya Mağara Hotel",
-    "location": "Nevşehir",
-    "price": 2000,
-    "stars": 5,
-    "features": ["mağara odalar", "balon turu", "manzara"]
-  },
-  {
-    "id": 6,
-    "name": "Bodrum Palace Resort",
-    "location": "Muğla",
-    "price": 2200,
-    "stars": 5,
-    "features": ["özel plaj", "infinity havuz", "spa merkezi"]
-  },
-  {
-    "id": 7,
-    "name": "Trabzon Sahil Hotel",
-    "location": "Trabzon",
-    "price": 1100,
-    "stars": 4,
-    "features": ["deniz manzaralı", "yerel mutfak", "organik kahvaltı"]
-  },
-  {
-    "id": 8,
-    "name": "Konya Selçuklu Hotel",
-    "location": "Konya",
-    "price": 800,
-    "stars": 3,
-    "features": ["tarihi merkez", "Mevlana müzesi yakın", "geleneksel mutfak"]
-  },
-  {
-    "id": 9,
-    "name": "Gaziantep Zeugma Hotel",
-    "location": "Gaziantep",
-    "price": 900,
-    "stars": 4,
-    "features": ["mutfak müzesi yakın", "baklava atölyesi", "tarihi çarşı"]
-  },
-  {
-    "id": 10,
-    "name": "Van Gölü Resort",
-    "location": "Van",
-    "price": 1300,
-    "stars": 4,
-    "features": ["göl manzaralı", "kahvaltı dahil", "doğa turları"]
-  },
-  {
-    "id": 11,
-    "name": "Diyarbakır Sur Hotel",
-    "location": "Diyarbakır",
-    "price": 750,
-    "stars": 3,
-    "features": ["surlar yakın", "tarihi merkez", "geleneksel mutfak"]
-  },
-  {
-    "id": 12,
-    "name": "Erzurum Palandöken Hotel",
-    "location": "Erzurum",
-    "price": 1600,
-    "stars": 4,
-    "features": ["kayak merkezi", "termal havuz", "dağ manzarası"]
-  },
-  {
-    "id": 13,
-    "name": "Samsun Karadeniz Hotel",
-    "location": "Samsun",
-    "price": 950,
-    "stars": 3,
-    "features": ["deniz manzaralı", "Atatürk müzesi yakın", "yerel lezzetler"]
-  },
-  {
-    "id": 14,
-    "name": "Adana Seyhan Hotel",
-    "location": "Adana",
-    "price": 850,
-    "stars": 3,
-    "features": ["merkezi konum", "kebap restoranı", "Seyhan barajı manzarası"]
-  },
-  {
-    "id": 15,
-    "name": "Mersin Marina Hotel",
-    "location": "Mersin",
-    "price": 1200,
-    "stars": 4,
-    "features": ["marina manzaralı", "deniz ürünleri", "modern tasarım"]
-  },
-  {
-    "id": 16,
-    "name": "Bursa Uludağ Resort",
-    "location": "Bursa",
-    "price": 1400,
-    "stars": 4,
-    "features": ["kayak merkezi", "termal kaynaklar", "yeşil doğa"]
-  },
-  {
-    "id": 17,
-    "name": "Eskişehir Porsuk Hotel",
-    "location": "Eskişehir",
-    "price": 1000,
-    "stars": 3,
-    "features": ["Porsuk çayı manzarası", "üniversite şehri", "modern sanat"]
-  },
-  {
-    "id": 18,
-    "name": "Kayseri Erciyes Hotel",
-    "location": "Kayseri",
-    "price": 1100,
-    "stars": 4,
-    "features": ["kayak merkezi", "pastırma lezzetleri", "tarihi merkez"]
-  },
-  {
-    "id": 19,
-    "name": "Malatya Kayısı Hotel",
-    "location": "Malatya",
-    "price": 700,
-    "stars": 3,
-    "features": ["kayısı bahçeleri", "geleneksel mutfak", "doğa yürüyüşleri"]
-  },
-  {
-    "id": 20,
-    "name": "Elazığ Hazar Hotel",
-    "location": "Elazığ",
-    "price": 800,
-    "stars": 3,
-    "features": ["Hazar gölü manzarası", "yerel mutfak", "tarihi geziler"]
-  }
-];
 
 // --- OTELLER API ENDPOINT'LERİ ---
 
@@ -417,7 +256,7 @@ app.get('/api/hotels', (req, res) => {
   try {
     res.status(200).json({
       success: true,
-      hotels: hotels
+      hotels: [] // Hotelleri boş bırakıyoruz
     });
   } catch (error) {
     console.error('Get hotels error:', error);
@@ -433,7 +272,7 @@ app.get('/api/hotels/search', (req, res) => {
   try {
     const { location, maxPrice, minPrice, stars } = req.query;
     
-    let filteredHotels = [...hotels];
+    let filteredHotels = [];
     
     // Konum filtresi
     if (location) {

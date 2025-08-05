@@ -172,38 +172,7 @@ body {
   box-shadow: 0 4px 15px rgba(242, 133, 128, 0.4);
 }
 
-.hotel-assistant-btn {
-  width: 100%;
-  background: linear-gradient(135deg, var(--color3) 0%, var(--color2) 100%);
-  color: var(--white);
-  border: none;
-  padding: 12px 20px;
-  border-radius: 10px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(189, 88, 103, 0.3);
-}
 
-.hotel-assistant-btn:hover {
-  background: linear-gradient(135deg, var(--color2) 0%, var(--color3) 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(189, 88, 103, 0.4);
-}
-
-.hotel-assistant-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(189, 88, 103, 0.3);
-}
-
-.hotel-assistant-btn:disabled {
-  background: rgba(255, 255, 255, 0.1);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
 
 .settings {
   display: flex;
@@ -798,6 +767,8 @@ body {
   gap: 10px;
   align-items: center;
   justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
 .input-row {
@@ -1133,4 +1104,41 @@ body {
 
 .app.dark-mode .hotel-selector-modal .hotel-selector-label {
   color: #e0e0e0;
+}
+
+/* Hotel Selector Styles */
+.input-controls .hotel-selector-compact {
+  display: inline-block;
+}
+
+.input-controls .hotel-select-compact {
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--light-gray);
+  color: var(--dark-gray);
+  font-size: 12px;
+  cursor: pointer;
+  min-width: 120px;
+}
+
+.input-controls .hotel-select-compact:focus {
+  outline: none;
+  border-color: var(--color3);
+}
+
+.input-controls .hotel-select-compact:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Dark mode for hotel selector */
+.app.dark-mode .input-controls .hotel-select-compact {
+  background: var(--dark-gray);
+  border-color: var(--border-color);
+  color: var(--white);
+}
+
+.app.dark-mode .input-controls .hotel-select-compact:focus {
+  border-color: var(--color4);
 }

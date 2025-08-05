@@ -6,6 +6,7 @@ import Register from './components/Register';
 import ModelSelector from './components/ModelSelector';
 import LanguageSelector from './components/LanguageSelector';
 import api from './services/api'; //API dosyası: Backend'e veri göndermek veya veri almak için kullanılır.
+import HotelSelector from './components/HotelSelector';
 
 function AppContent() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -13,22 +14,23 @@ function AppContent() {
   const [chats, setChats] = useState([]); 
   const [currentChatId, setCurrentChatId] = useState(null);
   const [messages, setMessages] = useState([]); // Şu anki sohbetin mesajları
-  const [inputMessage, setInputMessage] = useState(''); 
+  const [inputMessage, setInputMessage] = useState(''); // Bu satırı ekle
   const [isLoading, setIsLoading] = useState(false); 
   const [error, setError] = useState(null);
   const [language, setLanguage] = useState('tr'); 
   const [selectedModel, setSelectedModel] = useState('openai/gpt-3.5-turbo'); 
+  const [selectedHotel, setSelectedHotel] = useState(null);
   const [darkMode, setDarkMode] = useState(false); 
   
   const CHATS_KEY = 'ai_chatbot_chats'; // Tüm sohbetlerin saklandığı key
   const CURRENT_CHAT_KEY = 'ai_chatbot_current_chat'; // Şu anki seçili sohbetin ID'sinin saklandığı key
   
   // Seçim değişikliklerini backend'e bildiren fonksiyonlar
-  const handleModelChange = async (newModel) => { //newModel parametresi: Kullanıcının seçtiği yeni model bilgisini alır. 
-    setSelectedModel(newModel); //UI’da yeni seçilen modelin görünmesini sağlar.
-    if (isAuthenticated) { //kullanıcı giriş yaptıysa devam eder.
+  const handleModelChange = async (newModel) => {
+    setSelectedModel(newModel);
+    if (isAuthenticated) {
       try {
-        await api.updateUserPreferences(newModel, language); //api.js içindeki updateUserPreferences fonksiyonu çağrılır. seçilen yeni model ve dil backende gönderilir.
+        await api.updateUserPreferences(newModel, language, selectedHotel?.id || null);
         console.log('Model preference updated:', newModel);
       } catch (error) {
         console.error('Failed to update model preference:', error);
@@ -36,15 +38,41 @@ function AppContent() {
     }
   };
 
-  const handleLanguageChange = async (newLanguage) => { //hem state güncellenir hem de backende göndererek kalıcı kaydedilir.
-    setLanguage(newLanguage); //dil seçilir uı'da gösterilir. arayüze bu dile göre  çeviri yapılır.
-    if (isAuthenticated) { //eğer kullanıcı giriş yaptıysa
+  const handleLanguageChange = async (newLanguage) => {
+    setLanguage(newLanguage);
+    if (isAuthenticated) {
       try {
-        await api.updateUserPreferences(selectedModel, newLanguage); //seçilen model ve yeni dil bilgisi backend'e gönderilir.
+        await api.updateUserPreferences(selectedModel, newLanguage, selectedHotel?.id || null);
         console.log('Language preference updated:', newLanguage);
       } catch (error) {
         console.error('Failed to update language preference:', error);
       }
+    }
+  };
+
+  const handleHotelChange = async (newHotel) => {
+    setSelectedHotel(newHotel);
+    if (isAuthenticated) {
+      try {
+        await api.updateUserPreferences(selectedModel, language, newHotel?.id || null);
+        console.log('Hotel preference sent to backend:', newHotel?.id);
+      } catch (error) {
+        console.error('Failed to update hotel preference:', error);
+      }
+    }
+    
+    // Eğer bir otel seçildiyse ve aktif bir sohbet varsa, kullanıcıya bilgi ver
+    if (newHotel && newHotel.id !== 'none' && currentChatId && messages.length > 0) {
+      const hotelInfoMessage = {
+        id: `ai_${Date.now()}`,
+        text: `🏨 ${newHotel.name} temsilcisi olarak size yardımcı olmaya hazırım! ${newHotel.description} hakkında sorularınızı yanıtlayabilirim.`,
+        sender: 'ai',
+        timestamp: new Date().toISOString()
+      };
+      
+      const updatedMessages = [...messages, hotelInfoMessage];
+      setMessages(updatedMessages);
+      updateChatMessages(currentChatId, updatedMessages);
     }
   };
   
@@ -256,6 +284,20 @@ function AppContent() {
       setCurrentChatId(newChatId); // yeni sohbet seçilir.
       setMessages([]); // yeni sohbet için mesajlar temizlenir. henüz mesaj yoktur.
       
+      // Eğer bir otel seçiliyse, yeni sohbette otel bilgisini göster
+      if (selectedHotel && selectedHotel.id !== 'none') {
+        const hotelWelcomeMessage = {
+          id: `ai_${Date.now()}`,
+          text: `🏨 Merhaba! ${selectedHotel.name} temsilcisi olarak size yardımcı olmaya hazırım! ${selectedHotel.description} hakkında sorularınızı yanıtlayabilirim.`,
+          sender: 'ai',
+          timestamp: new Date().toISOString()
+        };
+        
+        const updatedMessages = [hotelWelcomeMessage];
+        setMessages(updatedMessages);
+        updateChatMessages(newChatId, updatedMessages);
+      }
+      
       console.log('New chat created successfully');
     } catch (error) {
       console.error('Create chat error:', error);
@@ -263,39 +305,7 @@ function AppContent() {
     }
   };
 
-  const createHotelAssistantChat = () => { //otel asistanı sohbeti oluşturur
-    try {
-      setError(null);
-      
-      const newChatId = `hotel_chat_${Date.now()}`;
-      const newChat = {
-        id: newChatId,
-        title: `Otel Rezervasyon Asistanı`,
-        messages: [
-          {
-            id: `ai_${Date.now()}`,
-            text: "Merhaba 👋 Size otel bulmamda yardımcı olur musunuz? Hangi şehirde konaklamak istersiniz?",
-            sender: 'ai',
-            timestamp: new Date().toISOString()
-          }
-        ],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      
-      console.log('Creating hotel assistant chat:', newChat);
-      
-      const updatedChats = [...chats, newChat]; //Mevcut sohbet dizisine (chats) yeni sohbeti (newChat) ekler.
-      setChats(updatedChats); 
-      setCurrentChatId(newChatId); //Yeni açılan sohbeti aktif hale getirir.
-      setMessages(newChat.messages);
-      
-      console.log('Hotel assistant chat created successfully');
-    } catch (error) {
-      console.error('Create hotel assistant chat error:', error);
-      setError('Otel asistanı sohbeti oluşturulamadı.');
-    }
-  };
+
 
   const selectChat = (chatId) => { //var olan sohbeti seçer
     // Eğer zaten seçili sohbet ise, gereksiz işlem yapma
@@ -351,28 +361,53 @@ function AppContent() {
         content: msg.text
       }));
       
-      const response = await api.sendAIMessage(inputMessage, conversationHistory, selectedModel, language); //inputMessage: Kullanıcının şu an yazdığı mesaj,conversationHistory: Önceki konuşmalar (context).
+      // Seçilen otel promptunu ekle
+      let systemPrompt = '';
+      if (selectedHotel && selectedHotel.prompt) {
+        systemPrompt = selectedHotel.prompt;
+      }
+      
+      const response = await api.sendAIMessage(inputMessage, conversationHistory, selectedModel, language, systemPrompt); //inputMessage: Kullanıcının şu an yazdığı mesaj,conversationHistory: Önceki konuşmalar (context).
       console.log('AI response:', response);
       
-      if (response.success) { //response ai'den gelen yanıt başarılıysa
-        const aiMessage = { //Gelen AI yanıtı, yeni bir mesaj objesine dönüştürülür:
-          id: `ai_${Date.now()}`,
-          text: response.aiResponse,
-          sender: 'ai',
-          timestamp: new Date().toISOString()
-        };
+      let aiText = response.aiResponse;
 
-        // AI mesajını ekle
-        const finalMessages = [...updatedMessages, aiMessage]; //Kullanıcının mesajını içeren updatedMessages listesine, AI cevabı olan aiMessage eklenir.
-        setMessages(finalMessages); //Mesajlar state'i güncellenir → kullanıcı arayüzünde görünür. 
-        
-        // Chat'i güncelle ve localStorage'a kaydet
-        updateChatMessages(currentChatId, finalMessages); //Aktif sohbetin (currentChatId) içeriği  finalmessage ile güncellenir
-      } else {
-        // Hata durumunda kullanıcının son yazdığı mesajını kaldırır ve önceki hali olan ai yanıtlamadan önceki mesaj listesine geri döner.
-        setMessages(messages);
-        setError(response.message || 'AI servisi ile bağlantı kurulamadı.');
+      // Anahtar kelimelerden biri geçiyorsa canlı destek mesajı ekle
+      const mustRedirect = [
+        "AI asistanı olarak", "gerçekleştiremiyorum", "yardımcı olamıyorum", "ben bir AI asistanıyım",
+        "rezervasyon yapabilme", "doğrudan rezervasyon", "rezervasyon işlemlerini"
+      ].some(keyword => aiText.includes(keyword));
+
+      if (mustRedirect) {
+        aiText += "\n\n **Rezervasyon İşlemi İçin Müşteri Temsilcisine Yönlendirme**\n\n";
+        aiText += "Rezervasyon bilgilerinizi aldım ve sistemimize kaydettim. ";
+        aiText += "Size en uygun seçenekleri sunabilmek ve rezervasyon işleminizi tamamlayabilmek için ";
+        aiText += "deneyimli müşteri temsilcilerimizle görüşmenizi öneriyorum.\n\n";
+        aiText += "📞 **Canlı Destek Hattı:** +90 xxx xxx xx xx\n";
+        aiText += "💬 **WhatsApp:** +90 xxx xxx xx xx\n";
+        aiText += "📧 **E-posta:** rezervasyon@oteladi.com\n\n";
+        aiText += "Müşteri temsilcilerimiz size şu konularda yardımcı olacaktır:\n";
+        aiText += "• Detaylı oda seçenekleri ve fiyatlandırma\n";
+        aiText += "• Özel istekleriniz ve özel talepleriniz\n";
+        aiText += "• Ödeme seçenekleri ve güvenli rezervasyon\n";
+        aiText += "• Transfer ve ek hizmetler\n\n";
+        aiText += "Size en kısa sürede dönüş yapılacaktır. Başka sorularınız varsa yardımcı olmaktan mutluluk duyarım!";
       }
+
+      // Sonra aiText'i mesaj olarak ekle
+      const aiMessage = {
+        id: `ai_${Date.now()}`,
+        text: aiText,
+        sender: 'ai',
+        timestamp: new Date().toISOString()
+      };
+
+      // AI mesajını ekle
+      const finalMessages = [...updatedMessages, aiMessage]; //Kullanıcının mesajını içeren updatedMessages listesine, AI cevabı olan aiMessage eklenir.
+      setMessages(finalMessages); //Mesajlar state'i güncellenir → kullanıcı arayüzünde görünür. 
+      
+      // Chat'i güncelle ve localStorage'a kaydet
+      updateChatMessages(currentChatId, finalMessages); //Aktif sohbetin (currentChatId) içeriği  finalmessage ile güncellenir
     } catch (error) {
       console.error('Send message error:', error);
       // Hata durumunda kullanıcı mesajını kaldır
@@ -466,7 +501,13 @@ function AppContent() {
         content: msg.text
       }));
       
-      const response = await api.sendAIMessage(editingText, conversationHistory.slice(0, -1), selectedModel, language); //conversationHistory.slice(0, -1) bu sayede son mesaj hariçdiğer tüm mesajlar yeni bir dizi olarak döner. Çünkü bu mesaj zaten ayrı bir parametre olarak editingText ile gönderiliyor.
+      // Seçilen otel promptunu ekle
+      let systemPrompt = '';
+      if (selectedHotel && selectedHotel.prompt) {
+        systemPrompt = selectedHotel.prompt;
+      }
+      
+      const response = await api.sendAIMessage(editingText, conversationHistory.slice(0, -1), selectedModel, language, systemPrompt); //conversationHistory.slice(0, -1) bu sayede son mesaj hariçdiğer tüm mesajlar yeni bir dizi olarak döner. Çünkü bu mesaj zaten ayrı bir parametre olarak editingText ile gönderiliyor.
       console.log('AI response for edited message:', response);
       
       if (response.success) { //sendaimessage success döndüysei
@@ -742,13 +783,8 @@ function AppContent() {
               {t.newChat}
             </button>
             
-            <button 
-              onClick={createHotelAssistantChat} 
-              className="hotel-assistant-btn"
-              disabled={isLoading}
-            >
-              🏨 Otel Asistanı
-            </button>
+
+            
             
             <div className="settings">
               <label>
@@ -928,19 +964,25 @@ function AppContent() {
 
               <div className="input-container">
                 <div className="input-controls">
-                                <ModelSelector
-                selectedModel={selectedModel}
-                onModelChange={handleModelChange}
-                disabled={isLoading}
-                compact={true}
-              />
-              <LanguageSelector
-                selectedLanguage={language}
-                onLanguageChange={handleLanguageChange}
-                disabled={isLoading}
-                compact={true}
-              />
-                </div>
+                <ModelSelector
+                  selectedModel={selectedModel}
+                  onModelChange={handleModelChange}
+                  disabled={isLoading}
+                  compact={true}
+                />
+                <LanguageSelector
+                  selectedLanguage={language}
+                  onLanguageChange={handleLanguageChange}
+                  disabled={isLoading}
+                  compact={true}
+                />
+                <HotelSelector
+                  selectedHotel={selectedHotel}
+                  onHotelChange={handleHotelChange}
+                  disabled={isLoading}
+                  compact={true}
+                />
+              </div>
                 <div className="input-row">
                   <input
                     type="text"
