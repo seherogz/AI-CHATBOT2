@@ -136,7 +136,7 @@ class ApiService {
   }
 
   // AI Chat - doğrudan OpenAI API'ye çağrı (frontend'den)
-  async sendAIMessage(message, conversationHistory = [], model = 'gpt-3.5-turbo', language = 'tr') {
+  async sendAIMessage(message, conversationHistory = [], model = 'gpt-3.5-turbo', language = 'tr', systemPrompt = '') {
     try {
       // OpenAI API key'i frontend'de environment variable olarak alınmalı
       const apiKey = process.env.REACT_APP_OPENAI_API_KEY;
@@ -144,7 +144,7 @@ class ApiService {
       if (!apiKey) {
         return {
           success: false,
-          message: 'OpenAI API anahtarı bulunamadı. REACT_APP_OPENAI_API_KEY environment variable\'ını ayarlayın.'
+          message: 'OpenAI API anahtarı bulunamadı.'
         };
       }
 
@@ -165,10 +165,16 @@ class ApiService {
         return messages[lang] || messages['en'];
       };
 
+      // System prompt'u hazırla
+      let finalSystemPrompt = getSystemMessage(language);
+      if (systemPrompt) {
+        finalSystemPrompt = `${systemPrompt}\n\n${getSystemMessage(language)}`;
+      }
+
       const apiMessages = [
         {
           role: 'system',
-          content: getSystemMessage(language)
+          content: finalSystemPrompt
         }
       ];
       
@@ -241,11 +247,12 @@ class ApiService {
     }
   }
 
-  async updateUserPreferences(model, language) {
+  async updateUserPreferences(model, language, hotel) {
     try {
       const response = await apiClient.post('/api/user/preferences', { 
         model, 
-        language 
+        language,
+        hotel // yeni eklenen otel parametresi
       });
       return response.data;
     } catch (error) {
