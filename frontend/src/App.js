@@ -291,7 +291,18 @@ function AppContent() {
         
         const updatedMessages = [hotelWelcomeMessage];
         setMessages(updatedMessages);
-        updateChatMessages(newChatId, updatedMessages);
+        
+        // Yeni sohbeti güncellemek için updatedChats kullan
+        const finalUpdatedChats = updatedChats.map(chat => 
+          chat.id === newChatId 
+            ? { 
+                ...chat, 
+                messages: updatedMessages,
+                updatedAt: new Date().toISOString() 
+              }
+            : chat
+        );
+        setChats(finalUpdatedChats);
       }
       
       console.log('New chat created successfully');
