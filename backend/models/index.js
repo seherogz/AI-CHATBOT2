@@ -1,4 +1,4 @@
-const { Sequelize } = require('sequelize');
+const { Sequelize } = require('sequelize'); //veritabanıyla konuuşr.
 const bcrypt = require('bcryptjs');
 
 // Database connection
@@ -70,7 +70,7 @@ const User = sequelize.define('User', {
 // Database sync function
 const syncDatabase = async () => {
   try {
-    await sequelize.authenticate();
+    await sequelize.authenticate(); //veritabanına bağlanılıyor mu test edilir.
     console.log('Database connection established successfully.');
     
     await sequelize.sync({ alter: true }); //Model değişikliklerine göre tabloyu günceller (veri kaybı olmadan).

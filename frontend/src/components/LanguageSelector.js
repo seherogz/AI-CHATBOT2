@@ -67,10 +67,10 @@ const LanguageSelector = ({ selectedLanguage, onLanguageChange, disabled = false
 
   return (
     <div className={`language-selector ${compact ? 'compact' : ''}`}>
-      {!compact && <label className="language-selector-label">Dil:</label>}
+      {!compact && <label className="language-selector-label">Dil:</label>} {/*compact false ise ise dil seçimi için etiket gösterilir. */}
       <select
         value={selectedLanguage}
-        onChange={(e) => onLanguageChange(e.target.value)}
+        onChange={(e) => onLanguageChange(e.target.value)} //Kullanıcı başka bir dili seçtiğinde onLanguageChange fonksiyonu çağrılır.e.target.value ile seçilen dilin kodu alınır.
         disabled={disabled}
         className={`language-select ${compact ? 'compact' : ''}`}
         title={compact ? languages.find(l => l.code === selectedLanguage)?.name : undefined}

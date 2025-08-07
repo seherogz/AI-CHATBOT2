@@ -9,7 +9,7 @@ const apiClient = axios.create({
 });
 
 // Token yönetimi
-const getToken = () => localStorage.getItem('token');
+const getToken = () => localStorage.getItem('token'); //API'ye istek yaparken header'a token eklemek için.
 const setToken = (token) => {
   if (token) {
     localStorage.setItem('token', token);
@@ -26,7 +26,7 @@ apiClient.interceptors.request.use(
   (config) => {
     const token = getToken();
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`; //Her API isteği öncesinde çalışır.Eğer token varsa, onu isteğin header’ına ekler:
     }
     return config;
   },
@@ -83,9 +83,9 @@ class ApiService {
   // Auth endpoints
   async login(username, password) {
     try {
-      const response = await apiClient.post('/api/auth/login', { username, password });
+      const response = await apiClient.post('/api/auth/login', { username, password }); //kullanıcının username ve passwodunu backende gönderir. verilen urlye(endpooint)istek atar.kullanıcının girdiği veriler gönderilir.
       if (response.data.success) {
-        setToken(response.data.token);
+        setToken(response.data.token); // Eğer giriş başarılıysa, token'ı localStorage'a kaydeder ve axios header'ına ekler.
       }
       return response.data;
     } catch (error) {
@@ -128,7 +128,7 @@ class ApiService {
   async getProfile() {
     try {
       const response = await apiClient.get('/api/auth/profile');
-      return response.data;
+      return response.data; 
     } catch (error) {
       console.error('Get profile error:', error);
       return error;
@@ -166,12 +166,12 @@ class ApiService {
       };
 
       // System prompt'u hazırla
-      let finalSystemPrompt = getSystemMessage(language);
+      let finalSystemPrompt = getSystemMessage(language); //dil ayarına göre
       if (systemPrompt) {
-        finalSystemPrompt = `${systemPrompt}\n\n${getSystemMessage(language)}`;
+        finalSystemPrompt = `${systemPrompt}\n\n${getSystemMessage(language)}`; //Otel gibi özel prompt varsa onunla birleştirilir.
       }
 
-      const apiMessages = [
+      const apiMessages = [ //ilk eleman sistem mesajı, daha sonra geçmiş konuşmalar eklenir
         {
           role: 'system',
           content: finalSystemPrompt
@@ -182,14 +182,14 @@ class ApiService {
       const recentHistory = conversationHistory.slice(-10);
       recentHistory.forEach(msg => {
         if (msg.role && msg.content) {
-          apiMessages.push({
+          apiMessages.push({ // Her mesajı, OpenAI API'nin anlayacağı yapıya dönüştürüp apiMessages listesine ekler.
             role: msg.role === 'user' ? 'user' : 'assistant',
             content: msg.content
           });
         }
       });
       
-      // Yeni mesajı ekle
+      /// Bu satırda ise, şu an yazılan son kullanıcı mesajı da dizinin en sonuna eklenir. OpenAI modeli, bu mesajı temel alarak cevap üretir.
       apiMessages.push({
         role: 'user',
         content: message
@@ -197,13 +197,13 @@ class ApiService {
 
       console.log('Sending request to OpenAI API:', { model, language, messageCount: apiMessages.length });
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', { //bu adrese post isteği gönderirim. Bu fetch() isteği, OpenAI'nin chat completions (sohbet yanıtı üretme) servisine gönderiliyor. 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
-        body: JSON.stringify({
+        body: JSON.stringify({ //bu bilgiler string formatında gider.
           model: model,
           messages: apiMessages,
           max_tokens: 300,
@@ -211,7 +211,7 @@ class ApiService {
         })
       });
 
-      if (!response.ok) {
+      if (!response.ok) { //openAI Api'den gelen mesaj başarılı değilse
         const errorData = await response.json();
         console.error('OpenAI API error:', errorData);
         return {
@@ -220,10 +220,10 @@ class ApiService {
         };
       }
 
-      const data = await response.json();
+      const data = await response.json(); //openAI Api'den gelen mesaj başarılı ise, json formatında veriyi alır.)
       
-      if (data.choices && data.choices[0] && data.choices[0].message) {
-        const aiResponse = data.choices[0].message.content;
+      if (data.choices && data.choices[0] && data.choices[0].message) {//data.choices → OpenAI cevabında "choices" dizisi var mı?,data.choices[0] → Bu dizinin içinde en az 1 cevap var mı?data.choices[0].message → Bu cevabın içinde bir message (yani AI'nin yanıtı) var mı?
+        const aiResponse = data.choices[0].message.content; //choices, OpenAI'nin sana sunduğu cevap(lar) listesidir.
         console.log('OpenAI response received:', aiResponse);
         
         return {
@@ -247,39 +247,16 @@ class ApiService {
     }
   }
 
-  async updateUserPreferences(model, language, hotel) {
+  async updateUserPreferences(model, language, hotel) { //Sunucuya bir POST isteği gönderir. URL: /api/user/preferences → Bu, backend’te kullanıcı tercihlerini güncelleyen endpoint.
     try {
-      const response = await apiClient.post('/api/user/preferences', { 
+      const response = await apiClient.post('/api/user/preferences', { ////istekle birlikte gönderilen veri json formatında gider. model:.., language: ...., hotel:... şeklinde.
         model, 
         language,
         hotel // yeni eklenen otel parametresi
       });
-      return response.data;
+      return response.data;  //apiden gelen mesajı döndürür.
     } catch (error) {
       console.error('Update preferences error:', error);
-      return error;
-    }
-  }
-
-  async sendMessageWithFile(chatId, message, file, model = 'gpt-3.5-turbo', language = 'tr') {
-    try {
-      const formData = new FormData();
-      formData.append('message', message);
-      formData.append('model', model);
-      formData.append('language', language);
-      
-      if (file) {
-        formData.append('file', file);
-      }
-
-      const response = await apiClient.post(`/api/chats/${chatId}/messages`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Send message with file error:', error);
       return error;
     }
   }

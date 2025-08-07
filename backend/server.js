@@ -1,17 +1,17 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+require('dotenv').config(); //.env dosyasındaki çevresel değişkenleri process.env üzerinden kullanılabilir hale getirir.
 const bcrypt = require('bcryptjs');
 
 // Database ve middleware import
 const { syncDatabase, User } = require('./models');
 const { generateToken, authenticateToken, optionalAuth } = require('./middleware/auth');
 
-const app = express();
+const app = express(); //Route'ları (GET, POST, vb.) ve middleware'leri tanımlamak için kullanılır.
 
 // CORS Ayarları:CORS ayarları frontend ile iletişimi sağlar, 
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: 'http://localhost:3000', //Tarayıcıdan gelen isteklerde farklı domain'ler arası erişime izin vermek için kullanılır.backend  3000 portundan istek atıyor frontend 5000.
   credentials: true
 }));
 
@@ -22,8 +22,8 @@ app.use(express.json());
 
 // --- LOGLAMA MIDDLEWARE ---
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`); //req.method: HTTP metodu (GET, POST, PUT, DELETE), gelen istekleri loglar.
-  if (req.body && Object.keys(req.body).length > 0) { //eğer varsa body ieriğini gösterir.
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`); //hangi endpointe hangi method saat kaçta istek atıldığını gösterir.
+  if (req.body && Object.keys(req.body).length > 0) { //eğer request varsa body ieriğini gösterir.
     console.log('Request Body:', req.body);
   }
   next();
@@ -39,17 +39,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Ana sayfa
-app.get('/', (req, res) => {
+app.get('/', (req, res) => {//  / adresine gelen GET isteklerine cevap verir.localhost:5000
   res.json({ message: 'AI Chatbot API çalışıyor' }); //json formatında yanıt gönderir.
 });
 
 // --- AUTH ENDPOINTS ---
 
 // Kullanıcı kaydı
-app.post('/api/auth/register', async (req, res) => { //username, email, password kontrol edilir.Kullanıcı zaten varsa 400 dönerYeni kullanıcı oluşturulur (User.create)JWT token üretip döner
+app.post('/api/auth/register', async (req, res) => {  //Kullanıcı kayıt olmak için POST isteği gönderdiğinde bu fonksiyon çalışır.
   try {
-    const { username, email, password } = req.body; //bu bilgileri kullanıcı gönderiyor formdan.
+    const { username, email, password } = req.body; // request bodyden gelen username, email ve password bilgilerini alır.
     
     console.log('Register attempt:', { username, email });
     
@@ -60,7 +59,7 @@ app.post('/api/auth/register', async (req, res) => { //username, email, password
       });
     }
     
-    const existingUser = await User.findOne({  // username veya emailiyle kullanıcı kontrol edilir.
+    const existingUser = await User.findOne({  // username veya emailiyle kullanıcı kontrol edilir,daha önce kullanılmış mı diye..
       where: {
         [require('sequelize').Op.or]: [
           { username: username },
@@ -84,7 +83,7 @@ app.post('/api/auth/register', async (req, res) => { //username, email, password
     });
     
     // JWT token oluştur
-    const token = generateToken(user);
+    const token = generateToken(user); //Kullanıcıya özel bir JWT (JSON Web Token) oluşturulur.
     
     console.log('User registered successfully:', { id: user.id, username: user.username });
     
@@ -107,14 +106,10 @@ app.post('/api/auth/register', async (req, res) => { //username, email, password
   }
 });
 
-// Kullanıcı girişi
-//Kullanıcının gönderdiği username ve password bilgilerine göre:
-//Kullanıcının var olup olmadığını kontrol eder
-//Şifresinin doğru olup olmadığını bcrypt ile kontrol eder
-//Doğruysa JWT token oluşturup kullanıcıya döner
-app.post('/api/auth/login', async (req, res) => {
+
+app.post('/api/auth/login', async (req, res) => { //frontend bu endpointe istek atar. async kendi fonksiyon içerisinde bekleyebilir, ama bağımsız olan diğer işlemler devam eder 
   try {
-    const { username, password } = req.body; //kullanıcının gönderdiği username ve password bilgileri alınır.
+    const { username, password } = req.body; //kullanıcının gönderdiği username ve password bilgileri alınır frontendden.Bu veri frontend tarafındaki formdan geliyor. Kullanıcı giriş yapmak için bir form doldurur ve bu form verileri backend’e POST isteği ile gönderilir.
      
     console.log('Login attempt:', { username });
     
@@ -125,12 +120,11 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
     
-    // Kullanıcıyı bul
-    const user = await User.findOne({ 
+    const user = await User.findOne({  //Kullanıcının varlığı username bilgisi ile kontrol edilir.
       where: { username: username }
     });
     
-    if (!user || !user.isActive) {
+    if (!user || !user.isActive) { //kullanıcı bulunamazsa veya kullanıcı aktif değilse 401 döner.
       return res.status(401).json({ 
         success: false, 
         message: 'Kullanıcı adı veya şifre hatalı.' 
@@ -138,7 +132,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
     
     // Şifre kontrolü
-    const isValidPassword = await bcrypt.compare(password, user.password); //kullanıcının gönderdiği password (bcrypt) veritabanındaki hashlenmiş password ile karşılaştırılır.
+    const isValidPassword = await bcrypt.compare(password, user.password); //kullanıcının gönderdiği password (bcrypt,düz metin) veritabanındaki hashlenmiş password ile karşılaştırılır.
     if (!isValidPassword) {
       return res.status(401).json({ 
         success: false, 
@@ -146,12 +140,12 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
     
-    // JWT token oluştur
+    // JWT token oluştur usera özgü
     const token = generateToken(user);
     
     console.log('User logged in successfully:', { id: user.id, username: user.username });
     
-    res.status(200).json({  //kullanıcı giriş yaptıktan sonra token oluşturulur ve kullanıcıya döner bu bilgiler.
+    res.status(200).json({  //Kullanıcının temel bilgileri ve token döndürülür.
       success: true, 
       message: 'Giriş başarılı.',
       user: { 
@@ -171,7 +165,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Kullanıcı profili
-app.get('/api/auth/profile', authenticateToken, async (req, res) => { //Bu sayede sadece giriş yapmış kullanıcılar profiline erişebilir.
+app.get('/api/auth/profile', authenticateToken, async (req, res) => { //Bu sayede sadece giriş yapmış kullanıcılar profiline erişebilir. token geçersizse bu route çalışmaz.
   try {
     res.status(200).json({ 
       success: true,
@@ -211,7 +205,7 @@ app.post('/api/auth/logout', authenticateToken, async (req, res) => { //Sadece t
   }
 });
 
-// Kullanıcı tercihlerini güncelle
+// Kullanıcı tercihlerini güncelle,kullanıcı bir tercih yapmak istediğinde frontedn bu endpoint'e post istek atar.
 app.post('/api/user/preferences', authenticateToken, async (req, res) => { //Sadece token’ı olan (giriş yapmış) kullanıcı tercihlerini güncelleyebilir.
   try {
     const { model, language, hotel } = req.body;  //kullanıcının gönderdiği model ve language bilgileri alınır.
@@ -233,7 +227,7 @@ app.post('/api/user/preferences', authenticateToken, async (req, res) => { //Sad
       { where: { id: req.user.id } } //Hangi kullanıcının tercihlerini güncelleyeceğini belirtir.
     );
     
-    res.status(200).json({
+    res.status(200).json({//bu bilgiler frontende gönderilir.
       success: true,
       message: 'Tercihler güncellendi.',
       preferences: { model, language }
@@ -246,8 +240,6 @@ app.post('/api/user/preferences', authenticateToken, async (req, res) => { //Sad
     });
   }
 });
-
-// --- OTELLER VERİSİ ---
 
 // --- OTELLER API ENDPOINT'LERİ ---
 

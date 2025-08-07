@@ -38,11 +38,11 @@ function AppContent() {
     }
   };
 
-  const handleLanguageChange = async (newLanguage) => {
-    setLanguage(newLanguage);
-    if (isAuthenticated) {
+  const handleLanguageChange = async (newLanguage) => { //dil değiştiğinde asıl bu fonksyion çalışır.
+    setLanguage(newLanguage); //Uygulamanın içindeki language state'i yeni seçilen dil olarak güncellenir. uı'da güncellenir.
+    if (isAuthenticated) {// Giriş yapılmamışsa, sadece state güncellenir ama sunucuya istek gönderilmez.
       try {
-        await api.updateUserPreferences(selectedModel, newLanguage, selectedHotel?.id || null);
+        await api.updateUserPreferences(selectedModel, newLanguage, selectedHotel?.id || null); //Bu satır sunucuya "kullanıcının yeni dil tercihi bu" demek için kullanılır.
         console.log('Language preference updated:', newLanguage);
       } catch (error) {
         console.error('Failed to update language preference:', error);
@@ -62,7 +62,7 @@ function AppContent() {
     }
     
     // Eğer bir otel seçildiyse ve aktif bir sohbet varsa, kullanıcıya bilgi ver
-    if (newHotel && newHotel.id !== 'none' && currentChatId && messages.length > 0) {
+    if (newHotel && newHotel.id !== 'none' && currentChatId && messages.length > 0) { //ilk otel seçeriz sonra gerçek otel seçip seçmediğimizi kontrol eder daha önce mesjalar yazılmış mı aktif sphbet var mı kontrol eder.
       const hotelInfoMessage = {
         id: `ai_${Date.now()}`,
         text: `🏨 ${newHotel.name} temsilcisi olarak size yardımcı olmaya hazırım! ${newHotel.description} hakkında sorularınızı yanıtlayabilirim.`,
@@ -70,9 +70,9 @@ function AppContent() {
         timestamp: new Date().toISOString()
       };
       
-      const updatedMessages = [...messages, hotelInfoMessage];
-      setMessages(updatedMessages);
-      updateChatMessages(currentChatId, updatedMessages);
+      const updatedMessages = [...messages, hotelInfoMessage]; //önceki mesaların sonuna son mesaj ekleniyor aiden gelen.
+      setMessages(updatedMessages);//State (ekran) güncelleniyor → setMessages
+      updateChatMessages(currentChatId, updatedMessages);//Eğer bu mesajları kalıcı olarak saklıyorsan updateChatMessages(chatId, updatedMessages) ile güncelleniyor
     }
   };
   
@@ -86,10 +86,10 @@ function AppContent() {
   // LocalStorage yönetim fonksiyonları
   const loadChatsFromStorage = () => { //LocalStorage’da kayıtlı sohbet verilerini alıp ekrana (state’e) yükleme
     try {
-      const storedChats = localStorage.getItem(CHATS_KEY);  //"ai_chatbot_chats" gibi bir anahtarla kayıtlı sohbetleri alır.
+      const storedChats = localStorage.getItem(CHATS_KEY);  //"ai_chatbot_chats" gibi bir anahtarla kayıtlı sohbetleri alır ve storedchat'e atar.
       if (storedChats) { //Eğer localStorage’da veri varsa, bu veri string formundadır.
         const parsedChats = JSON.parse(storedChats); // JSON.parse ile string’i nesneye çeviririz.
-        setChats(parsedChats); 
+        setChats(parsedChats);  //chat ekranı güncellenir.sohbetler görünür
         console.log('Chats loaded from localStorage:', parsedChats.length);
       }
     } catch (error) {
@@ -97,9 +97,9 @@ function AppContent() {
     }
   };
 
-  const saveChatsToStorage = (chatsToSave) => { //sohbet kaydetme,chattosave, kaydedilecek sohbetlerin listesini alır.
+  const saveChatsToStorage = (chatsToSave) => { //sohbet kaydetme,chattosave, kaydedilecek sohbetlerin listesini alır ve kaydediyorum localstorageye
     try {
-      localStorage.setItem(CHATS_KEY, JSON.stringify(chatsToSave)); //JavaScript objesini string'e çevirir çünkü localStorage sadece string saklayabilir.
+      localStorage.setItem(CHATS_KEY, JSON.stringify(chatsToSave)); //sohbet verileri (chatsToSave) string’e çevrilerek CHATS_KEY adıyla tarayıcıya kaydedilir
       console.log('Chats saved to localStorage:', chatsToSave.length); //localstorage.setItem:bu stringi tarayıcıya kaydeder.
     } catch (error) {
       console.error('Error saving chats to localStorage:', error);
@@ -121,9 +121,8 @@ function AppContent() {
 
   const saveCurrentChatToStorage = (chatId) => { //Yani bu sefer sohbeti kaydediyoruz ki sonra geri yükleyebilelim. parametre olarak chatıd alır ki sonra o chat id'e sahip olan chati tekrardan yükleyebilelim. 
     try {
-      if (chatId) { //Bu, şu anda açık olan sohbetin ID’sidir
-        localStorage.setItem(CURRENT_CHAT_KEY, chatId); 
-      } else {
+      if (chatId) { //Bu, şu anda açık olan sohbetin ID’sidir,eğer geçerli id varsa
+        localStorage.setItem(CURRENT_CHAT_KEY, chatId);  //chatid:3 ise artık bu chat hafızaya current chat key oalrak kaydedeilir.
         localStorage.removeItem(CURRENT_CHAT_KEY); //eğer chatId yoksa, yani hiçbir sohbet seçili değilse, localStorage'dan bu kaydı kaldırır. sebebi de sayfa yenilendiğinde eski bir sohbet yanlışlıkla tekrar açılmasın.
       }
       console.log('Current chat saved to localStorage:', chatId);
@@ -132,18 +131,18 @@ function AppContent() {
     }
   };
 
-  // Uygulama başladığında token kontrolü
+  // Uygulama başladığında token kontrolü, giriş yaptıktan sonra bu fonk çalışır.
   useEffect(() => {//uygulama ilk açıldğında token kontrolü yapar ve kullanıcıyı oturum açmış mı değil mi kontrol eder.
     console.log('useEffect[1]: Token check started');
     const checkAuth = async () => {
       if (api.isAuthenticated()) { //tarayıcıda token var mı mı kontrol ediyor.local storage'da token varsa, kullanıcı giriş yapmış demektir.
         try {
           console.log('useEffect[1]: User is authenticated, checking profile...');
-          const response = await api.getProfile(); 
+          const response = await api.getProfile();  //eğer token varsa, API'den kullanıcı profilini alır. Bu, kullanıcının geçerli bir oturum açıp açmadığını kontrol etmek için yapılır.
           if (response.success) {
             console.log('useEffect[1]: Profile check successful, setting auth state');
             setIsAuthenticated(true); // Kullanıcıyı oturum açmış olarak işaretler.
-            setCurrentUser(response.user); // Kullanıcı bilgilerini state'e kaydeder.
+            setCurrentUser(response.user); // Kullanıcı bilgilerini(mail,username,işd gibi) state'e kaydeder.
             
             if (response.user.preferredModel) { // daha önce seçilmiş bir modeli varsa onu ayarlar.
               setSelectedModel(response.user.preferredModel); 
@@ -204,29 +203,26 @@ function AppContent() {
       setIsLoading(true);
       
       console.log('Attempting login with:', { username });
-      const response = await api.login(username, password); //api.js içindeki login fonksiyonu çağrılır. Backend'e istek atılır.
+      const response = await api.login(username, password); //api.js içindeki login fonksiyonu çağrılır. Backend'e istek atılır.api.js içindeki login() fonksiyonu çağrılır.Sunucuya POST /api/auth/login isteği gönderilir.
       console.log('Login response:', response);
       
-      if (response.success) {
+      if (response.success) { //fonk cevabı eğer doğruysa
         setIsAuthenticated(true);
-        setCurrentUser(response.user);
-        // loadChats() çağrısını kaldırdık çünkü useEffect'te zaten çağrılıyor
+        setCurrentUser(response.user); //gelen kullanıcı bilgileri belleğerw yazılır.
         // Başarılı giriş sonrası chat ekranına yönlendir
         navigate('/');
         return { success: true };
       } else {
-        // Backend'den gelen hata mesajını kullan
-        const errorMessage = response.message || 'Giriş yapılırken bir hata oluştu';
+        const errorMessage = response.message || 'Giriş yapılırken bir hata oluştu'; //backendden gelen hata
         setError(errorMessage);
         return { success: false, error: errorMessage };
       }
     } catch (error) {
       console.error('Login error:', error);
-      // API'den gelen hata mesajını kullan
-      const errorMessage = error.message || 'Giriş yapılırken bir hata oluştu';
+      const errorMessage = error.message || 'Giriş yapılırken bir hata oluştu'; //apiden gelen hata
       setError(errorMessage);
       return { success: false, error: errorMessage };
-    } finally {
+    } finally { 
       setIsLoading(false);
     }
   };
@@ -268,7 +264,7 @@ function AppContent() {
     try {
       setError(null); //önceki hata varsa temizlenir.
       
-      const newChatId = `chat_${Date.now()}`; //yeni sohbet ID'si oluşturulur. Bu ID, timestamp ile benzersiz hale getirilir.
+      const newChatId = `chat_${Date.now()}`; //yeni sohbet ID'si oluşturulur. 
       const newChat = { //chat objesi oluşturulur.
         id: newChatId,
         title: `Sohbet ${chats.length + 1}`,
@@ -321,11 +317,11 @@ function AppContent() {
       console.log('Selecting chat:', chatId);
       
       // localStorage'dan seçili chat'in mesajlarını yükle
-      const chat = chats.find(c => c.id === chatId); //bu id'ye sahip olan chat bulunur
-      if (chat && chat.messages) { //sohbet veya mesajları varsa
+      const chat = chats.find(c => c.id === chatId); //chat dizininin içinde bu id'ye sahip olan chat bulunur
+      if (chat && chat.messages) { 
         setMessages(chat.messages);// sohbet mesajlarını yükler.
         console.log('Chat messages loaded:', chat.messages.length);
-      } else { // eğer chat bulunamazsa veya mesajları yoksa boş döndürür mesajı.
+      } else { 
         setMessages([]);
         console.log('No messages found for chat:', chatId);
       }
@@ -338,14 +334,13 @@ function AppContent() {
   const sendMessage = async () => { // Kullanıcının yazdığı mesajı ekler, AI'den cevap alır, sohbeti günceller.
     if (!inputMessage.trim() || !currentChatId) return; // Eğer mesaj boşsa veya sohbet seçilmemişse hiçbir şey yapma.
 
-    const userMessage = { // Kullanıcının mesajını oluştur
+    const userMessage = { // Kullanıcının mesajını obje haline getirir.
       id: `user_${Date.now()}`,
       text: inputMessage,
       sender: 'user',
       timestamp: new Date().toISOString()
     };
 
-    // Anlamı: Var olan mesajların (messages) sonuna, yeni kullanıcı mesajı eklenir. Amaç: Kullanıcı mesajını hemen ekrana yansıtmak (AI cevabı beklenmeden).
     const updatedMessages = [...messages, userMessage]; // önceki mevcut mesajların sonuna kullanıcı mesajını ekler.
     setMessages(updatedMessages); //mesaj listesi güncellenir
     setInputMessage(''); 
@@ -354,8 +349,7 @@ function AppContent() {
 
     try {
       console.log('Sending message to AI:', { message: inputMessage, model: selectedModel, language: language });
-      
-      // son mesaj (yeni kullanıcı mesajı) API’ye gönderilmez, çünkü zaten inputMessage ile ayrı olarak gönderilecektir. Amaç: AI’ye geçmiş konuşmaları bağlam olarak vermek, ama henüz ekranda olan kullanıcı mesajını tekrar etmemek.
+      //Kullanıcının yazdığı mesajı, daha önceki konuşmaları da referans alarak, seçilen AI modeline gönderir ve AI’dan dönen cevabı aiText olarak alır.
       const conversationHistory = updatedMessages.slice(0, -1).map(msg => ({ //Kullanıcı mesajı da dahil olmak üzere anlık tüm mesajlar. ama son mesajı hariçtir çünkü ai'ye daha bu mesaj gönderilmedi.
         role: msg.sender === 'user' ? 'user' : 'assistant', //map sayesinde her mesajı role,content olarak ayırlar. 
         content: msg.text
@@ -367,10 +361,11 @@ function AppContent() {
         systemPrompt = selectedHotel.prompt;
       }
       
-      const response = await api.sendAIMessage(inputMessage, conversationHistory, selectedModel, language, systemPrompt); //inputMessage: Kullanıcının şu an yazdığı mesaj,conversationHistory: Önceki konuşmalar (context).
+      //backend üzerinden openAı'e istek atar
+      const response = await api.sendAIMessage(inputMessage, conversationHistory, selectedModel, language, systemPrompt); // Kullanıcının yazdığı mesajı, önceki konuşmalarla birlikte OpenAI’ye gönderir ve cevabını bekler. OpenAI cevabı dönene kadar bekler ve o cevabı response değişkenine atar.
       console.log('AI response:', response);
       
-      let aiText = response.aiResponse;
+      let aiText = response.aiResponse; //AI'den gelen cevabı alır. response.aiResponse: API'den dönen AI cevabıdır.
 
       // Anahtar kelimelerden biri geçiyorsa canlı destek mesajı ekle
       const mustRedirect = [
@@ -421,14 +416,14 @@ function AppContent() {
   // Chat mesajlarını güncelle ve localStorage'a kaydet
   const updateChatMessages = (chatId, newMessages) => { //hangi sohbetin güncelleneceği ve yeni mesajların ne olacağı parametre olarak alınır.
     try {
-      const updatedChats = chats.map(chat => //tüm sohbetler içerisinde ara, chat.id ile eşleşen sohbeti bulur ve günceller.
+      const updatedChats = chats.map(chat => //tğm chatler kontrol edilir, Eğer bu chat.id, parametre olarak gelen chatId ile eşleşiyorsa güncelleme yapılır.
         chat.id === chatId  //Eğer bu chat nesnesinin ID’si, güncellemek istediğin chatId ile eşitse:
           ? { 
               ...chat,  //eski sohbetin tüm özelliklerini al.
               messages: newMessages,  //güncel mesaj listesini bunun içine koy
               updatedAt: new Date().toISOString() 
             }
-          : chat
+          : chat//Eğer ID eşleşmiyorsa, sohbet olduğu gibi kalır
       );
       setChats(updatedChats); //Yeni sohbet listesi chats state’ine kaydedilir.
       console.log('Chat messages updated for:', chatId);
@@ -460,19 +455,18 @@ function AppContent() {
     }
   };
 
-  const startEditMessage = (messageId, currentText) => { //parametre olarak messageId: Düzenlenecek mesajın benzersiz kimliği, currentText: Mesajın şu anki (eski) metni.
-    setEditingMessageId(messageId); //editingMessageId state’ine bu ID atanır.Bu sayede hangi mesaj düzenleniyor bilgisi tutulur.
-    setEditingText(currentText);//Mesajın içeriği (metni) editingText state’ine yazılır.Böylece input kutusunda kullanıcıya bu metin gösterilebilir ve değiştirilebilir olur.
-  };
+  const startEditMessage = (messageId, currentText) =>{  //sadece düzenleme modunu a.ar,düzenleme yapmaz. 
+    setEditingMessageId(messageId); //hangi mesaj düzenleniyor
+    setEditingText(currentText);//  Şu anki mesaj içeriğini input kutusuna koyar
+  }
 
-  const cancelEditMessage = () => { //herhangi bir parametre almaz sadece mevcut düzenleme işlemini iptal eder. 
-    setEditingMessageId(null); // düzenleme modunu kapatır.Şu anda düzenlenen mesajın ID’sini sıfırlar.
-    setEditingText(''); //Mesajın düzenlenmekte olan metni sıfırlanır (input kutusu boşaltılır).
+  const cancelEditMessage = () => {  
+    setEditingMessageId(null); // düzenleme modunu kapatır..
+    setEditingText(''); 
   };
 
   const saveEditMessage = async (messageId) => { //düzenlenecek olan mesqajın ID'sini parametre olarak alır.
-    if (!editingText.trim()) return; //Eğer kullanıcı boş ya da sadece boşluklardan oluşan bir metin girdiyse hiçbir işlem yapılmadan çıkılır.
-
+    if (!editingText.trim()) return; 
     try {
       setError(null); // Önceki hataları temizle
       setIsLoading(true); // Yükleme durumunu aktif et
@@ -496,7 +490,7 @@ function AppContent() {
       setMessages(updatedMessages); //uı'da güncellenmiş mesajlar gösterilir.
       
       // Yeni AI cevabı al
-      const conversationHistory = updatedMessages.map(msg => ({ //updatedMessages adlı dizi içindeki her bir mesaj (msg) için yeni bir nesne oluşturur.
+      const conversationHistory = updatedMessages.map(msg => ({ //geçmiş konuşmaları yapay zekaya anlayacağı dilde göndermek.updatemessage ile mesajlarımı alıyor,he rmesaj için nesne döndürür.
         role: msg.sender === 'user' ? 'user' : 'assistant',
         content: msg.text
       }));
@@ -522,7 +516,7 @@ function AppContent() {
         setMessages(finalMessages);  //ani mesaj listesi yenileniyor ve ekranda görünür hale geliyor.
         
         // Chat'i güncelle ve localStorage'a kaydet
-        updateChatMessages(currentChatId, finalMessages); //güncel mesajları hem bellekte (state) hem de tarayıcıda (localStorage) saklar.
+        updateChatMessages(currentChatId, finalMessages);
         
         setEditingMessageId(null); //Bu işlem sayesinde, mesaj düzenleme modu kapatılır.
         setEditingText(''); //input sıfırlanır.
@@ -729,11 +723,12 @@ function AppContent() {
     }
   }, [isAuthenticated, location.pathname, navigate]);
 
-  if (location.pathname === '/login') {
-    return <Login onLogin={handleLogin} error={error} isLoading={isLoading} />;
+  if (location.pathname === '/login') { //eper kullanıcı login sayfasındaysa
+    return <Login onLogin={handleLogin} error={error} isLoading={isLoading} />; //login butonuna basınca çalışacak olan fonksyion onLogin=handleLogin,eğer bir hata varsa error syaesinde gözüküyr ve giriş ypaılıyor ibaresi isLoading syesinde belli olur.
   }
   if (location.pathname === '/register') {
-    return <Register onRegister={handleRegister} error={error} isLoading={isLoading} />;
+    return <Register onRegister={handleRegister} error={error} isLoading={isLoading} />; //App.js şu satırla regiser bileşenine 3 şey gönderiyor,render olması demek sayfada register formunun gözükmesi.
+
   }
 
   // Giriş yapmamış kullanıcılar için login sayfasını göster
@@ -783,9 +778,7 @@ function AppContent() {
               {t.newChat}
             </button>
             
-
-            
-            
+             
             <div className="settings">
               <label>
                 <input
