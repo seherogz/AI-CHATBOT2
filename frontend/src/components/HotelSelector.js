@@ -3,7 +3,6 @@ import './HotelSelector.css';
 
 const HotelSelector = ({ selectedHotel, onHotelChange, disabled = false, compact = false }) => {  //onhotelchange otel değiştiğinde çağrılan fonksyion.,disable seçim devre dışı olup olmadığını kontrol eder.
   //Çünkü otel nesnesi bulunup dışarı gönderiliyor  yani üst komponent bu otel nesnesini alıyor ve duruma göre güncelleniyor..ama language için gerek yok zaten dil kodu direkt gönderiliyor.
-  //“Hangi otel seçildi?” sorusuna cevap verir. App.js'e "şu otel seçildi" der. Bu ise oteli kaydeder ve sunucuya yollar.
   const hotels = [
     {
       id: 'none',
@@ -67,8 +66,8 @@ const HotelSelector = ({ selectedHotel, onHotelChange, disabled = false, compact
   ];
 
   const handleHotelChange = (e) => {
-    const hotelId = e.target.value;//kullanıcının seçtiği otelin id değerini alır kullanıcıdan alınır.
-    const selectedHotelData = hotels.find(hotel => hotel.id === hotelId); //hotels dizisi içinde seçilen id ile eşleşen otel nesnesi bulunur.
+    const hotelId = e.target.value; //id alınır
+    const selectedHotelData = hotels.find(hotel => hotel.id === hotelId); 
     onHotelChange(selectedHotelData); //bu parametreyi gönderir. Bu sayede üst komponent hangi otelin seçildiğini bilir ve duruma göre güncellenir.
     
     // Otel seçildiğinde kullanıcıya bilgi ver

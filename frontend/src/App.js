@@ -9,7 +9,7 @@ import api from './services/api'; //API dosyası: Backend'e veri göndermek veya
 import HotelSelector from './components/HotelSelector';
 
 function AppContent() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false); //useState,Bir değişkeni saklamak ve bu değişken değiştiğinde ekranı yenilemek için kullanılır.
   const [currentUser, setCurrentUser] = useState(null); //Giriş yapan kullanıcının bilgilerini tutar. useState durumları saklamak için kullanılır.
   const [chats, setChats] = useState([]); 
   const [currentChatId, setCurrentChatId] = useState(null);
@@ -70,9 +70,9 @@ function AppContent() {
         timestamp: new Date().toISOString()
       };
       
-      const updatedMessages = [...messages, hotelInfoMessage]; //önceki mesaların sonuna son mesaj ekleniyor aiden gelen.
-      setMessages(updatedMessages);//State (ekran) güncelleniyor → setMessages
-      updateChatMessages(currentChatId, updatedMessages);//Eğer bu mesajları kalıcı olarak saklıyorsan updateChatMessages(chatId, updatedMessages) ile güncelleniyor
+      const updatedMessages = [...messages, hotelInfoMessage]; 
+      setMessages(updatedMessages);//Mesajı gönderdin → Ekranda hemen gözükmesi için setMessages çalışır.
+      updateChatMessages(currentChatId, updatedMessages);//Tüm sohbetler listesindeki (chats) ilgili sohbetin mesajlarını kalıcı olarak günceller
     }
   };
   
@@ -83,7 +83,6 @@ function AppContent() {
   const messagesEndRef = useRef(null);
   const navigate = useNavigate();
 
-  // LocalStorage yönetim fonksiyonları
   const loadChatsFromStorage = () => { //LocalStorage’da kayıtlı sohbet verilerini alıp ekrana (state’e) yükleme
     try {
       const storedChats = localStorage.getItem(CHATS_KEY);  //"ai_chatbot_chats" gibi bir anahtarla kayıtlı sohbetleri alır ve storedchat'e atar.
@@ -97,7 +96,8 @@ function AppContent() {
     }
   };
 
-  const saveChatsToStorage = (chatsToSave) => { //sohbet kaydetme,chattosave, kaydedilecek sohbetlerin listesini alır ve kaydediyorum localstorageye
+  //Şu anki tüm sohbet listesini LocalStorage’a kaydeder.
+  const saveChatsToStorage = (chatsToSave) => {
     try {
       localStorage.setItem(CHATS_KEY, JSON.stringify(chatsToSave)); //sohbet verileri (chatsToSave) string’e çevrilerek CHATS_KEY adıyla tarayıcıya kaydedilir
       console.log('Chats saved to localStorage:', chatsToSave.length); //localstorage.setItem:bu stringi tarayıcıya kaydeder.
@@ -106,10 +106,10 @@ function AppContent() {
     }
   };
 
-  //Normalde tarayıcıyı yenilersen hangi sohbet açıktı bilgisi kaybolur. Ama bu fonksiyon sayesinde: id:2 olan sohbeti açtığında, tarayıcıyı yenilesen bile bu sohbeti tekrar açtığında id:2 olan sohbeti açar.
+  //En son hangi sohbet açıksa onun ID’sini yükler ve ekranı o sohbete getirir.
   const loadCurrentChatFromStorage = () => { //Parametre almaz, çünkü tüm veri localStorage’da kayıtlıdır.
     try {
-      const storedChatId = localStorage.getItem(CURRENT_CHAT_KEY); // "ai_chatbot_current_chat" anahtarıyla kayıtlı olan sohbet ID'sini alır ve locale kaydeder.
+      const storedChatId = localStorage.getItem(CURRENT_CHAT_KEY); //hangi sohbetin açık olduğunu id'sini localstorageden getirerek atar.
       if (storedChatId) {
         setCurrentChatId(storedChatId); //localStorage’dan en son açık sohbetin ID’si (storedChatId) alınır.setCurrentChatId(storedChatId) ile bu ID React’e aktarılır.Ekranda o ID’ye ait sohbet otomatik olarak yeniden görüntülenir.
         console.log('Current chat loaded from localStorage:', storedChatId);
@@ -119,7 +119,7 @@ function AppContent() {
     }
   };
 
-  const saveCurrentChatToStorage = (chatId) => { //Yani bu sefer sohbeti kaydediyoruz ki sonra geri yükleyebilelim. parametre olarak chatıd alır ki sonra o chat id'e sahip olan chati tekrardan yükleyebilelim. 
+  const saveCurrentChatToStorage = (chatId) => { //Şu an açık olan sohbetin ID’sini LocalStorage’a kaydeder.
     try {
       if (chatId) { //Bu, şu anda açık olan sohbetin ID’sidir,eğer geçerli id varsa
         localStorage.setItem(CURRENT_CHAT_KEY, chatId);  //chatid:3 ise artık bu chat hafızaya current chat key oalrak kaydedeilir.
@@ -135,7 +135,7 @@ function AppContent() {
   useEffect(() => {//uygulama ilk açıldğında token kontrolü yapar ve kullanıcıyı oturum açmış mı değil mi kontrol eder.
     console.log('useEffect[1]: Token check started');
     const checkAuth = async () => {
-      if (api.isAuthenticated()) { //tarayıcıda token var mı mı kontrol ediyor.local storage'da token varsa, kullanıcı giriş yapmış demektir.
+      if (api.isAuthenticated()) { //tarayıcıda token var mı kontrol ediyor.local storage'da token varsa, kullanıcı giriş yapmış demektir.
         try {
           console.log('useEffect[1]: User is authenticated, checking profile...');
           const response = await api.getProfile();  //eğer token varsa, API'den kullanıcı profilini alır. Bu, kullanıcının geçerli bir oturum açıp açmadığını kontrol etmek için yapılır.
@@ -293,11 +293,11 @@ function AppContent() {
         setMessages(updatedMessages);
         
         // Yeni sohbeti güncellemek için updatedChats kullan
-        const finalUpdatedChats = updatedChats.map(chat => 
+        const finalUpdatedChats = updatedChats.map(chat =>  //.map() metodu ile bu listedeki her bir sohbet (chat) tek tek dönülüyor.Amaç: newChatId ile ID’si eşleşen sohbeti güncellemek, diğerlerini aynen bırakmak.
           chat.id === newChatId 
             ? { 
                 ...chat, 
-                messages: updatedMessages,
+                messages: updatedMessages, //yeni welcome mesajı eklendi.
                 updatedAt: new Date().toISOString() 
               }
             : chat
@@ -345,7 +345,7 @@ function AppContent() {
   const sendMessage = async () => { // Kullanıcının yazdığı mesajı ekler, AI'den cevap alır, sohbeti günceller.
     if (!inputMessage.trim() || !currentChatId) return; // Eğer mesaj boşsa veya sohbet seçilmemişse hiçbir şey yapma.
 
-    const userMessage = { // Kullanıcının mesajını obje haline getirir.
+    const userMessage = {
       id: `user_${Date.now()}`,
       text: inputMessage,
       sender: 'user',
@@ -424,10 +424,9 @@ function AppContent() {
     }
   };
 
-  // Chat mesajlarını güncelle ve localStorage'a kaydet
-  const updateChatMessages = (chatId, newMessages) => { //hangi sohbetin güncelleneceği ve yeni mesajların ne olacağı parametre olarak alınır.
+  const updateChatMessages = (chatId, newMessages) => { 
     try {
-      const updatedChats = chats.map(chat => //tğm chatler kontrol edilir, Eğer bu chat.id, parametre olarak gelen chatId ile eşleşiyorsa güncelleme yapılır.
+      const updatedChats = chats.map(chat => 
         chat.id === chatId  //Eğer bu chat nesnesinin ID’si, güncellemek istediğin chatId ile eşitse:
           ? { 
               ...chat,  //eski sohbetin tüm özelliklerini al.
@@ -485,15 +484,15 @@ function AppContent() {
       console.log('Updating message:', { messageId, text: editingText, model: selectedModel, language: language });
       
       // Düzenlenen mesajdan sonraki tüm mesajları kaldır
-      const editedMessageIndex = messages.findIndex(msg => msg.id === messageId); //mesajların içinde düzenlenecek mesajın index'ini bulur.
+      const editedMessageIndex = messages.findIndex(msg => msg.id === messageId); //mesajların içinde düzenlenecek mesajın index'ini bulur.kaçıncı sırada
       if (editedMessageIndex === -1) {
         setError('Mesaj bulunamadı.');
         return;
       }
       
       // Mesajı güncelle ve sonrasını sil
-      const updatedMessages = messages.slice(0, editedMessageIndex + 1); //Düzenlenen mesaj olmak üzere ve öncesini alır(0 demsi dizinin başından alır.). Sonrasını siler çünkü artık yapay zekâ cevabı da değişmelidir.
-      updatedMessages[editedMessageIndex] = { // Az önce oluşturduğumuz updatedMessages dizisinin düzenlenen mesajını alır. düzenlediğim mesaj
+      const updatedMessages = messages.slice(0, editedMessageIndex + 1);// Düzenlenen mesaj ve ondan önceki mesajlar alınır.
+      updatedMessages[editedMessageIndex] = { // , düzenlediğin mesaj yerinde güncelleniyor.
         ...updatedMessages[editedMessageIndex], // mevcut mesajın tüm özelliklerini korur. id'si gibi. o mesajın tüm bilgisi
         text: editingText //Bu satır, düzenlenen mesajın text (içerik) kısmını, kullanıcıdan gelen editingText ile değiştirir. Ama geri kalan bilgileri (örneğin id, timestamp, sender) korur.
       };

@@ -14,8 +14,8 @@ app.use(cors({
   origin: 'http://localhost:3000', //Tarayıcıdan gelen isteklerde farklı domain'ler arası erişime izin vermek için kullanılır.backend  3000 portundan istek atıyor frontend 5000.
   credentials: true
 }));
-
-app.options('*', cors());
+///!!!!
+app.options('*', cors());//options bak.
 
 app.use(express.json());
 
